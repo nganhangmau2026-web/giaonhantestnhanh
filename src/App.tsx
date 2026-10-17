@@ -1,27 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  ClipboardList,
-  PackageCheck,
-  Printer,
-  Settings,
-  LogOut,
-  KeyRound,
-  PlusCircle,
-  Trash2,
-  CheckSquare,
-  Search,
-  UserCheck,
-  CheckCircle2,
-  Calendar,
-  Clock,
-  FileSpreadsheet,
-  Sparkles,
-  Lock,
-  Download,
-  ShieldCheck,
-  UserX,
-  AlertTriangle,
-  Edit,
+  ClipboardList, PackageCheck, Printer, Settings, LogOut, KeyRound,
+  PlusCircle, Trash2, CheckSquare, Search, UserCheck,
+  Calendar, Clock, FileSpreadsheet, Sparkles, Lock, Download, ShieldCheck, UserX, AlertTriangle
 } from 'lucide-react';
 
 // ============================================================================
@@ -517,10 +498,7 @@ export default function App() {
     setBm04Logs([...bm04Logs, item]);
     setPendingQueue(pendingQueue.filter((q) => q.id !== queueId));
 
-    if (
-      GOOGLE_APPS_SCRIPT_URL &&
-      GOOGLE_APPS_SCRIPT_URL !== 'DÁN_LINK_WEB_APP_CỦA_BẠN_VÀO_ĐÂY'
-    ) {
+    iif (GOOGLE_APPS_SCRIPT_URL) {
       fetch(GOOGLE_APPS_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
@@ -2170,7 +2148,7 @@ export default function App() {
                   </thead>
                   <tbody>
                     {users
-                      .filter((u) => u.id !== 'thlong')
+                      .filter((u: any) => u.id !== 'thlong')
                       .map((u: any, idx: number) => (
                         <tr key={u.id} className="hover:bg-slate-50 transition">
                           <td className="border border-slate-200 p-2.5 text-center font-bold">
