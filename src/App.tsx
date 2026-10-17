@@ -498,7 +498,7 @@ export default function App() {
     setBm04Logs([...bm04Logs, item]);
     setPendingQueue(pendingQueue.filter((q) => q.id !== queueId));
 
-    iif (GOOGLE_APPS_SCRIPT_URL) {
+    if (GOOGLE_APPS_SCRIPT_URL) {
       fetch(GOOGLE_APPS_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
