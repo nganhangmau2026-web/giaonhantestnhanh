@@ -11,7 +11,7 @@ import {
   Printer, CheckCircle2, AlertTriangle, Plus, Trash2, Lock, Unlock,
   RefreshCw, LogOut, ShieldCheck, KeyRound, Settings, Database,
   FileSpreadsheet, Clock, UserCheck, Users, Search, Sparkles, Edit2,
-  ArrowRight, Check, X, RotateCcw, Wifi, WifiOff, AlertOctagon, Layers, Zap
+  ArrowRight, Check, X, RotateCcw, WifiOff, AlertOctagon, Layers
 } from 'lucide-react';
 
 /* ============================== CẤU HÌNH KẾT NỐI ============================== */
@@ -1971,7 +1971,7 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
   const pages = useMemo(() => {
     const result = [];
     for (let i = 0; i < totalPages; i++) {
-      const chunk = dayLogs.slice(i * ROWS_PER_PAGE, (i + 1) * ROWS_PER_PAGE);
+      const chunk: (QueueItem | null)[] = dayLogs.slice(i * ROWS_PER_PAGE, (i + 1) * ROWS_PER_PAGE);
       while (chunk.length < ROWS_PER_PAGE) {
         chunk.push(null); // Bơm dòng trống cho đủ 18 dòng
       }
@@ -2817,7 +2817,7 @@ export function MainApp() {
   const [gioiTinh, setGioiTinh] = useState<'Nam' | 'Nu'>('Nam');
   const [namSinh, setNamSinh] = useState('');
   const [barcode, setBarcode] = useState('');
-  const [docChungDefault, setDocChungDefault] = useState<DocChungValue>('Dương tính');
+  const [docChungDefault] = useState<DocChungValue>('Dương tính');
   const [selectedTestCodes, setSelectedTestCodes] = useState<string[]>([]);
   const [journalShiftFilter, setJournalShiftFilter] = useState<'ALL' | ShiftNumber>('ALL');
 
@@ -2971,7 +2971,7 @@ export function MainApp() {
 
   const enqueueOutbox = useCallback(
     (action: string, payload: Record<string, any>) => {
-      const nextPayload = { ...payload, sessionEpoch: sessionEpoch || undefined };
+      const nextPayload: Record<string, any> = { ...payload, sessionEpoch: sessionEpoch || undefined };
       const item: OutboxItem = {
         qid: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         action,
@@ -3832,10 +3832,10 @@ export function MainApp() {
     [currentDayComputed.tests]
   );
 
-  const pendingCountOfViewShift = useMemo(
-    () => pendingQueue.filter(p => p.ngayBC === selectedDate && Number(p.caTruc) === Number(viewShift)).length,
-    [pendingQueue, selectedDate, viewShift]
-  );
+  // const pendingCountOfViewShift = useMemo(
+  //   () => pendingQueue.filter(p => p.ngayBC === selectedDate && Number(p.caTruc) === Number(viewShift)).length,
+  //   [pendingQueue, selectedDate, viewShift]
+  // );
 
   const pausedOutboxCount = useMemo(() => outbox.filter(x => x.paused).length, [outbox]);
 
