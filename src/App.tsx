@@ -1,18 +1,47 @@
 /**
  * ============================================================================
- *  FRONTEND APP – QUẢN LÝ TEST NHANH MIỄN DỊCH (BM.04 / BM.13) - BẢN TỐI HẬU V12
+ *  FRONTEND APP – QUẢN LÝ TEST NHANH MIỄN DỊCH (BM.04 / BM.13) - BẢN TỐI HẬU V13
  *  Khoa Xét Nghiệm – Bệnh viện Đa khoa Cà Mau
  *  AN INTELLECTUAL PRODUCT OF HANDSOME LONG
  * ============================================================================
  */
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
-  Printer, CheckCircle2, AlertTriangle, Plus, Trash2, Lock, Unlock,
-  RefreshCw, LogOut, ShieldCheck, KeyRound, Settings, Database,
-  FileSpreadsheet, Clock, UserCheck, Users, Search, Sparkles, Edit2,
-  ArrowRight, Check, X, RotateCcw, WifiOff, AlertOctagon, Layers
-} from 'lucide-react';
+  Printer,
+  CheckCircle2,
+  AlertTriangle,
+  Plus,
+  Trash2,
+  Lock,
+  Unlock,
+  RefreshCw,
+  LogOut,
+  ShieldCheck,
+  KeyRound,
+  Settings,
+  Database,
+  FileSpreadsheet,
+  Clock,
+  UserCheck,
+  Users,
+  Search,
+  Sparkles,
+  Edit2,
+  ArrowRight,
+  Check,
+  X,
+  RotateCcw,
+  WifiOff,
+  AlertOctagon,
+  Layers,
+} from "lucide-react";
 
 /* ============================== CẤU HÌNH KẾT NỐI ============================== */
 
@@ -21,26 +50,28 @@ const DEFAULT_API_URL =
   'https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec';
 
 const STORAGE_KEYS = Object.freeze({
-  API_URL: 'MD_API_URL_V2',
-  AUTH: 'MD_AUTH_V2',
-  CHECKER: 'MD_CHECKER_V2',
-  TESTS: 'MD_TESTS_V2',
-  BM04: 'MD_BM04_V2',
-  PENDING: 'MD_PENDING_V2',
-  BM13_RAW: 'MD_BM13_RAW_V2',
-  BM13_DIRTY: 'MD_BM13_DIRTY_V2',
-  DRAFTS: 'MD_DRAFTS_V2',
-  OUTBOX: 'MD_OUTBOX_V2',
-  DATA_VERSION: 'MD_DATA_VERSION_V2',
-  SERVER_OFFSET: 'MD_SERVER_OFFSET_V2'
+  API_URL: "MD_API_URL_V2",
+  AUTH: "MD_AUTH_V2",
+  CHECKER: "MD_CHECKER_V2",
+  TESTS: "MD_TESTS_V2",
+  BM04: "MD_BM04_V2",
+  PENDING: "MD_PENDING_V2",
+  BM13_RAW: "MD_BM13_RAW_V2",
+  BM13_DIRTY: "MD_BM13_DIRTY_V2",
+  DRAFTS: "MD_DRAFTS_V2",
+  TIMERS: "MD_TIMERS_V2",
+  OUTBOX: "MD_OUTBOX_V2",
+  DATA_VERSION: "MD_DATA_VERSION_V2",
+  SERVER_OFFSET: "MD_SERVER_OFFSET_V2",
 });
 
 /* ============================== KIỂU DỮ LIỆU ============================== */
 
-export type Role = 'Admin' | 'User';
+export type Role = "Admin" | "User";
 export type ShiftNumber = 1 | 2 | 3 | 4;
-export type ShiftStatus = 'OPEN' | 'PENDING_RECEIVE' | 'HOAN_THANH';
-export type DocChungValue = 'Dương tính' | 'Âm Tính';
+export type ShiftStatus = "OPEN" | "PENDING_RECEIVE" | "HOAN_THANH";
+export type DocChungValue = "Dương tính" | "Âm Tính";
+export type TimerPresetMinutes = 10 | 15 | 20;
 
 export interface UserInfo {
   id: string;
@@ -79,6 +110,7 @@ export interface QueueItem {
   hoTenBN: string;
   namSinhNam: string;
   namSinhNu: string;
+  isAgeMode?: boolean;
   barcode: string;
   docChung: DocChungValue;
   ketQua?: string;
@@ -87,6 +119,12 @@ export interface QueueItem {
   nguoiKiemTra: string;
   timestamp: string;
   lanSuaCuoi?: string;
+}
+
+export interface PatientTimer {
+  startAt: number;
+  durationMs: number;
+  presetMin: TimerPresetMinutes;
 }
 
 export interface ShiftCellData {
@@ -155,84 +193,129 @@ export interface DraftResult {
 
 // Các mã xét nghiệm chỉ ghi nhận kết quả BM.04, KHÔNG quản lý tồn kho BM.13
 const NON_STOCK_TESTS: Record<string, boolean> = Object.freeze({
-  WIDAL: true
+  WIDAL: true,
 });
 
 export function isStockTestCode(code: string): boolean {
-  const c = String(code || '').trim().toUpperCase();
+  const c = String(code || "")
+    .trim()
+    .toUpperCase();
   return Boolean(c) && !NON_STOCK_TESTS[c];
 }
 
 const DEFAULT_TESTS: TestConfig[] = [
-  { code: 'HCV', name: 'HCV (TN)', unit: 'TEST', quota: 20 },
-  { code: 'HBSAB', name: 'HBsAb (TN)', unit: 'TEST', quota: 5 },
-  { code: 'HIV', name: 'HIV (TN)', unit: 'TEST', quota: 10 },
-  { code: 'SYPHI', name: 'SYPHI', unit: 'TEST', quota: 5 },
-  { code: 'KSTSR', name: 'KSTSR', unit: 'TEST', quota: 10 },
-  { code: 'DENGUE', name: 'DENGUE', unit: 'TEST', quota: 10 },
-  { code: 'NS1', name: 'NS1', unit: 'TEST', quota: 10 },
-  { code: 'DRUG4', name: 'test gây nghiện 4 test thử', unit: 'TEST', quota: 10 },
-  { code: 'MOP', name: 'MOP', unit: 'TEST', quota: 10 },
-  { code: 'AMP', name: 'AMP', unit: 'TEST', quota: 10 },
-  { code: 'MET', name: 'MET', unit: 'TEST', quota: 10 },
-  { code: 'THC', name: 'THC', unit: 'TEST', quota: 10 },
-  { code: 'HBEAB', name: 'HBeAb (TN)', unit: 'TEST', quota: 5 },
-  { code: 'HBEAG', name: 'HBeAg (TN)', unit: 'TEST', quota: 5 },
-  { code: 'HBCAB', name: 'HBcAb (TN)', unit: 'TEST', quota: 5 },
-  { code: 'CODEIN', name: 'CODEIN', unit: 'TEST', quota: 10 },
-  { code: 'WIDAL', name: 'WIDAL', unit: 'TEST', quota: 0, noStock: true }
+  { code: "HCV", name: "HCV (TN)", unit: "TEST", quota: 20 },
+  { code: "HBSAB", name: "HBsAb (TN)", unit: "TEST", quota: 5 },
+  { code: "HIV", name: "HIV (TN)", unit: "TEST", quota: 10 },
+  { code: "SYPHI", name: "SYPHI", unit: "TEST", quota: 5 },
+  { code: "KSTSR", name: "KSTSR", unit: "TEST", quota: 10 },
+  { code: "DENGUE", name: "DENGUE", unit: "TEST", quota: 10 },
+  { code: "NS1", name: "NS1", unit: "TEST", quota: 10 },
+  {
+    code: "DRUG4",
+    name: "test gây nghiện 4 test thử",
+    unit: "TEST",
+    quota: 10,
+  },
+  { code: "MOP", name: "MOP", unit: "TEST", quota: 10 },
+  { code: "AMP", name: "AMP", unit: "TEST", quota: 10 },
+  { code: "MET", name: "MET", unit: "TEST", quota: 10 },
+  { code: "THC", name: "THC", unit: "TEST", quota: 10 },
+  { code: "HBEAB", name: "HBeAb (TN)", unit: "TEST", quota: 5 },
+  { code: "HBEAG", name: "HBeAg (TN)", unit: "TEST", quota: 5 },
+  { code: "HBCAB", name: "HBcAb (TN)", unit: "TEST", quota: 5 },
+  { code: "CODEIN", name: "CODEIN", unit: "TEST", quota: 10 },
+  { code: "WIDAL", name: "WIDAL", unit: "TEST", quota: 0, noStock: true },
 ];
 
-export const SHIFT_INFO: Record<ShiftNumber, { label: string; short: string; timeRange: string }> = {
-  1: { label: 'Lần 1 (07h00 - 11h00)', short: 'Ca 1', timeRange: '07h00 - 11h00' },
-  2: { label: 'Lần 2 (11h00 - 13h30)', short: 'Ca 2', timeRange: '11h00 - 13h30' },
-  3: { label: 'Lần 3 (13h30 - 17h00)', short: 'Ca 3', timeRange: '13h30 - 17h00' },
-  4: { label: 'Lần 4 (17h00 - 07h00)', short: 'Ca 4', timeRange: '17h00 - 07h00' }
+export const SHIFT_INFO: Record<
+  ShiftNumber,
+  { label: string; short: string; timeRange: string }
+> = {
+  1: {
+    label: "Lần 1 (07h00 - 11h00)",
+    short: "Ca 1",
+    timeRange: "07h00 - 11h00",
+  },
+  2: {
+    label: "Lần 2 (11h00 - 13h30)",
+    short: "Ca 2",
+    timeRange: "11h00 - 13h30",
+  },
+  3: {
+    label: "Lần 3 (13h30 - 17h00)",
+    short: "Ca 3",
+    timeRange: "13h30 - 17h00",
+  },
+  4: {
+    label: "Lần 4 (17h00 - 07h00)",
+    short: "Ca 4",
+    timeRange: "17h00 - 07h00",
+  },
 };
 
 /**
  * Bảng màu nhận diện riêng cho từng Ca trực (Ca 1: Xanh dương, Ca 2: Cam, Ca 3: Xanh lá, Ca 4: Tím)
  */
-export const SHIFT_THEME: Record<ShiftNumber, {
-  badgeBg: string;
-  badgeText: string;
-  border: string;
-  softBg: string;
-  headerSelectBg: string;
-  optionStyle: { backgroundColor: string; color: string; fontWeight: number };
-}> = {
+export const SHIFT_THEME: Record<
+  ShiftNumber,
+  {
+    badgeBg: string;
+    badgeText: string;
+    border: string;
+    softBg: string;
+    headerSelectBg: string;
+    optionStyle: { backgroundColor: string; color: string; fontWeight: number };
+  }
+> = {
   1: {
-    badgeBg: 'bg-sky-600',
-    badgeText: 'text-white',
-    border: 'border-sky-200',
-    softBg: 'bg-sky-50/60',
-    headerSelectBg: 'bg-sky-600/90 border-sky-400/60 text-white',
-    optionStyle: { backgroundColor: '#e0f2fe', color: '#0369a1', fontWeight: 700 }
+    badgeBg: "bg-sky-600",
+    badgeText: "text-white",
+    border: "border-sky-200",
+    softBg: "bg-sky-50/60",
+    headerSelectBg: "bg-sky-600/90 border-sky-400/60 text-white",
+    optionStyle: {
+      backgroundColor: "#e0f2fe",
+      color: "#0369a1",
+      fontWeight: 700,
+    },
   },
   2: {
-    badgeBg: 'bg-amber-500',
-    badgeText: 'text-white',
-    border: 'border-amber-200',
-    softBg: 'bg-amber-50/60',
-    headerSelectBg: 'bg-amber-500/90 border-amber-300/60 text-white',
-    optionStyle: { backgroundColor: '#fef3c7', color: '#b45309', fontWeight: 700 }
+    badgeBg: "bg-amber-500",
+    badgeText: "text-white",
+    border: "border-amber-200",
+    softBg: "bg-amber-50/60",
+    headerSelectBg: "bg-amber-500/90 border-amber-300/60 text-white",
+    optionStyle: {
+      backgroundColor: "#fef3c7",
+      color: "#b45309",
+      fontWeight: 700,
+    },
   },
   3: {
-    badgeBg: 'bg-emerald-600',
-    badgeText: 'text-white',
-    border: 'border-emerald-200',
-    softBg: 'bg-emerald-50/60',
-    headerSelectBg: 'bg-emerald-600/90 border-emerald-400/60 text-white',
-    optionStyle: { backgroundColor: '#d1fae5', color: '#047857', fontWeight: 700 }
+    badgeBg: "bg-emerald-600",
+    badgeText: "text-white",
+    border: "border-emerald-200",
+    softBg: "bg-emerald-50/60",
+    headerSelectBg: "bg-emerald-600/90 border-emerald-400/60 text-white",
+    optionStyle: {
+      backgroundColor: "#d1fae5",
+      color: "#047857",
+      fontWeight: 700,
+    },
   },
   4: {
-    badgeBg: 'bg-purple-600',
-    badgeText: 'text-white',
-    border: 'border-purple-200',
-    softBg: 'bg-purple-50/60',
-    headerSelectBg: 'bg-purple-600/90 border-purple-400/60 text-white',
-    optionStyle: { backgroundColor: '#f3e8ff', color: '#6d28d9', fontWeight: 700 }
-  }
+    badgeBg: "bg-purple-600",
+    badgeText: "text-white",
+    border: "border-purple-200",
+    softBg: "bg-purple-50/60",
+    headerSelectBg: "bg-purple-600/90 border-purple-400/60 text-white",
+    optionStyle: {
+      backgroundColor: "#f3e8ff",
+      color: "#6d28d9",
+      fontWeight: 700,
+    },
+  },
 };
 
 /* ====================== TIỆN ÍCH NGÀY GIỜ (GMT+7) ====================== */
@@ -244,9 +327,15 @@ try {
 } catch {}
 
 export function updateServerOffset(serverTimeMs?: number) {
-  if (typeof serverTimeMs === 'number' && Number.isFinite(serverTimeMs) && serverTimeMs > 1700000000000) {
+  if (
+    typeof serverTimeMs === "number" &&
+    Number.isFinite(serverTimeMs) &&
+    serverTimeMs > 1700000000000
+  ) {
     serverOffsetMs = serverTimeMs - Date.now();
-    try { localStorage.setItem(STORAGE_KEYS.SERVER_OFFSET, String(serverOffsetMs)); } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.SERVER_OFFSET, String(serverOffsetMs));
+    } catch {}
   }
 }
 
@@ -262,7 +351,7 @@ function getVnParts(d: Date = getTrustedNow()) {
     month: vn.getUTCMonth() + 1,
     day: vn.getUTCDate(),
     hour: vn.getUTCHours(),
-    minute: vn.getUTCMinutes()
+    minute: vn.getUTCMinutes(),
   };
 }
 
@@ -271,18 +360,24 @@ function pad2(n: number): string {
 }
 
 export function isDateStr(s: unknown): s is string {
-  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const [y, m, d] = s.split('-').map(Number);
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && (dt.getUTCMonth() + 1) === m && dt.getUTCDate() === d;
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() + 1 === m &&
+    dt.getUTCDate() === d
+  );
 }
 
 export function addDays(dateStr: string, delta: number): string {
   if (!isDateStr(dateStr)) return dateStr;
-  const [y, m, d] = dateStr.split('-').map(Number);
+  const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   dt.setUTCDate(dt.getUTCDate() + delta);
-  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(
+    dt.getUTCDate()
+  )}`;
 }
 
 export function businessDate(d: Date = getTrustedNow()): string {
@@ -302,16 +397,22 @@ export function shiftOfDay(d: Date = getTrustedNow()): ShiftNumber {
 
 export function formatVnTimeNow(d: Date = getTrustedNow()): string {
   const p = getVnParts(d);
-  return `${pad2(p.hour)}h${pad2(p.minute)} ${pad2(p.day)}/${pad2(p.month)}/${p.year}`;
+  return `${pad2(p.hour)}h${pad2(p.minute)} ${pad2(p.day)}/${pad2(p.month)}/${
+    p.year
+  }`;
 }
 
 export function formatDateDisplay(dateStr: string): string {
   if (!isDateStr(dateStr)) return dateStr;
-  const [y, m, d] = dateStr.split('-');
+  const [y, m, d] = dateStr.split("-");
   return `${d}/${m}/${y}`;
 }
 
-export function isShiftOverdue(selectedDate: string, shift: ShiftNumber, now: Date = getTrustedNow()): boolean {
+export function isShiftOverdue(
+  selectedDate: string,
+  shift: ShiftNumber,
+  now: Date = getTrustedNow()
+): boolean {
   const bToday = businessDate(now);
   if (selectedDate < bToday) return true;
   if (selectedDate > bToday) return false;
@@ -319,69 +420,91 @@ export function isShiftOverdue(selectedDate: string, shift: ShiftNumber, now: Da
   return shift < curShift;
 }
 
+export function formatCountdownMmSs(remainingMs: number): string {
+  const totalSec = Math.max(0, Math.ceil(remainingMs / 1000));
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${pad2(mins)}:${pad2(secs)}`;
+}
+
 /* ============= CHUẨN HÓA BỘ TEST ĐA CHÂN (DRUG4, DENGUE, KSTSR, WIDAL) ============= */
 
 export const MULTI_TEST_CONFIG: Record<string, string[]> = {
-  DRUG4: ['MOP', 'AMP', 'THC', 'Codein', 'Heroin'],
-  DENGUE: ['IgG', 'IgM'],
-  KSTSR: ['P. falciparum', 'P. vivax'],
-  WIDAL: ['Typhi O', 'Typhi H', 'AO', 'AH', 'BO', 'BH', 'CO', 'CH']
+  DRUG4: ["MOP", "AMP", "THC", "Codein", "Heroin"],
+  DENGUE: ["IgG", "IgM"],
+  KSTSR: ["P. falciparum", "P. vivax"],
+  WIDAL: ["Typhi O", "Typhi H", "AO", "AH", "BO", "BH", "CO", "CH"],
 };
 
 export function getSubTests(maTest: string): string[] | null {
-  const code = String(maTest || '').trim().toUpperCase();
+  const code = String(maTest || "")
+    .trim()
+    .toUpperCase();
   return MULTI_TEST_CONFIG[code] || null;
 }
 
 function buildSubKeyRegex(key: string): RegExp {
-  let altKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (key === 'Codein') altKey = '(?:Codein|COD)';
-  else if (key === 'Heroin') altKey = '(?:Heroin|HER)';
-  else if (key === 'P. falciparum') altKey = '(?:P\\.\\s*falciparum|P\\.\\s*falci|Pf)';
-  else if (key === 'P. vivax') altKey = '(?:P\\.\\s*vivax|Pv)';
-  else if (key === 'Typhi O') altKey = '(?:Typhi\\s*O|TO)';
-  else if (key === 'Typhi H') altKey = '(?:Typhi\\s*H|TH)';
+  let altKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (key === "Codein") altKey = "(?:Codein|COD)";
+  else if (key === "Heroin") altKey = "(?:Heroin|HER)";
+  else if (key === "P. falciparum")
+    altKey = "(?:P\\.\\s*falciparum|P\\.\\s*falci|Pf)";
+  else if (key === "P. vivax") altKey = "(?:P\\.\\s*vivax|Pv)";
+  else if (key === "Typhi O") altKey = "(?:Typhi\\s*O|TO)";
+  else if (key === "Typhi H") altKey = "(?:Typhi\\s*H|TH)";
 
   const valTokens = [
-    'Dương(?:\\s*tính)?',
-    'Duong(?:\\s*tinh)?',
-    'Âm(?:\\s*tính)?',
-    'Am(?:\\s*tinh)?',
-    'D',
-    'Â',
-    'A',
-    '\\+',
-    '\\-',
-    '\\?'
-  ].join('|');
+    "Dương(?:\\s*tính)?",
+    "Duong(?:\\s*tinh)?",
+    "Âm(?:\\s*tính)?",
+    "Am(?:\\s*tinh)?",
+    "D",
+    "Â",
+    "A",
+    "\\+",
+    "\\-",
+    "\\?",
+  ].join("|");
 
   return new RegExp(
-    '(?:^|[|;,\\s])' + altKey + '\\s*(?:[:=]|\\()\\s*(' + valTokens + ')\\)?',
-    'gi'
+    "(?:^|[|;,\\s])" + altKey + "\\s*(?:[:=]|\\()\\s*(" + valTokens + ")\\)?",
+    "gi"
   );
 }
 
-export function parseMultiResultWithNote(maTest: string, ketQua: string): {
-  map: Record<string, 'Âm' | 'Dương' | ''>;
+export function parseMultiResultWithNote(
+  maTest: string,
+  ketQua: string
+): {
+  map: Record<string, "Âm" | "Dương" | "">;
   extraNote: string;
 } {
   const subs = getSubTests(maTest);
-  const res: Record<string, 'Âm' | 'Dương' | ''> = {};
-  if (!subs) return { map: res, extraNote: '' };
-  subs.forEach(k => { res[k] = ''; });
+  const res: Record<string, "Âm" | "Dương" | ""> = {};
+  if (!subs) return { map: res, extraNote: "" };
+  subs.forEach((k) => {
+    res[k] = "";
+  });
 
-  const raw = String(ketQua || '').trim();
-  if (!raw) return { map: res, extraNote: '' };
+  const raw = String(ketQua || "").trim();
+  if (!raw) return { map: res, extraNote: "" };
 
   const rawLower = raw.toLowerCase();
-  if (rawLower === 'âm tính' || rawLower === 'am tinh' || rawLower === 'âm' || rawLower === 'am') {
-    subs.forEach(k => { res[k] = 'Âm'; });
-    return { map: res, extraNote: '' };
+  if (
+    rawLower === "âm tính" ||
+    rawLower === "am tinh" ||
+    rawLower === "âm" ||
+    rawLower === "am"
+  ) {
+    subs.forEach((k) => {
+      res[k] = "Âm";
+    });
+    return { map: res, extraNote: "" };
   }
 
   let leftover = raw;
   const explicitNoteMatch = leftover.match(/(?:\|\s*)?Ghi\s*chú\s*:\s*(.+)$/i);
-  let explicitNote = '';
+  let explicitNote = "";
   if (explicitNoteMatch && explicitNoteMatch.index !== undefined) {
     explicitNote = explicitNoteMatch[1].trim();
     leftover = leftover.slice(0, explicitNoteMatch.index).trim();
@@ -391,78 +514,135 @@ export function parseMultiResultWithNote(maTest: string, ketQua: string): {
     const re = buildSubKeyRegex(key);
     let m: RegExpExecArray | null;
     while ((m = re.exec(leftover)) !== null) {
-      const valStr = String(m[1] || '').trim().toLowerCase();
-      if (valStr === '?') {
-        if (!res[key]) res[key] = '';
-      } else if (valStr.startsWith('dương') || valStr.startsWith('duong') || valStr === '+' || valStr === 'd') {
-        res[key] = 'Dương';
+      const valStr = String(m[1] || "")
+        .trim()
+        .toLowerCase();
+      if (valStr === "?") {
+        if (!res[key]) res[key] = "";
+      } else if (
+        valStr.startsWith("dương") ||
+        valStr.startsWith("duong") ||
+        valStr === "+" ||
+        valStr === "d"
+      ) {
+        res[key] = "Dương";
       } else {
-        res[key] = 'Âm';
+        res[key] = "Âm";
       }
     }
-    leftover = leftover.replace(re, ' ');
+    leftover = leftover.replace(re, " ");
   }
 
-  const cleanedLeftover = leftover.replace(/[|;,()]+/g, ' ').replace(/\s+/g, ' ').trim();
-  const extraNote = [explicitNote, cleanedLeftover].filter(Boolean).join(' - ').trim();
+  const cleanedLeftover = leftover
+    .replace(/[|;,()]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const extraNote = [explicitNote, cleanedLeftover]
+    .filter(Boolean)
+    .join(" - ")
+    .trim();
   return { map: res, extraNote };
 }
 
-export function parseMultiResult(maTest: string, ketQua: string): Record<string, 'Âm' | 'Dương' | ''> {
+export function parseMultiResult(
+  maTest: string,
+  ketQua: string
+): Record<string, "Âm" | "Dương" | ""> {
   return parseMultiResultWithNote(maTest, ketQua).map;
 }
 
-export function formatMultiResult(maTest: string, map: Record<string, 'Âm' | 'Dương' | ''>, extraNote = ''): string {
+export function formatMultiResult(
+  maTest: string,
+  map: Record<string, "Âm" | "Dương" | "">,
+  extraNote = ""
+): string {
   const subs = getSubTests(maTest);
-  if (!subs) return '';
-  const base = subs.map(k => `${k}: ${map[k] || '?'}`).join(' | ');
-  const note = String(extraNote || '').trim();
+  if (!subs) return "";
+  const base = subs.map((k) => `${k}: ${map[k] || "?"}`).join(" | ");
+  const note = String(extraNote || "").trim();
   return note ? `${base} | Ghi chú: ${note}` : base;
 }
 
-export function validateAndNormalizeMulti(maTest: string, rawKetQua: string): {
+export function validateAndNormalizeMulti(
+  maTest: string,
+  rawKetQua: string
+): {
   ok: boolean;
   normalized: string;
   error: string;
 } {
-  const raw = String(rawKetQua || '').trim();
-  if (!raw) return { ok: false, normalized: '', error: 'Vui lòng nhập Kết quả xét nghiệm!' };
+  const raw = String(rawKetQua || "").trim();
+  if (!raw)
+    return {
+      ok: false,
+      normalized: "",
+      error: "Vui lòng nhập Kết quả xét nghiệm!",
+    };
 
   const subs = getSubTests(maTest);
-  if (!subs) return { ok: true, normalized: raw, error: '' };
+  if (!subs) return { ok: true, normalized: raw, error: "" };
 
   const rawLower = raw.toLowerCase();
-  if (rawLower === 'âm tính' || rawLower === 'am tinh' || rawLower === 'âm' || rawLower === 'am') {
-    const allNeg: Record<string, 'Âm' | 'Dương' | ''> = {};
-    subs.forEach(k => { allNeg[k] = 'Âm'; });
-    return { ok: true, normalized: formatMultiResult(maTest, allNeg), error: '' };
+  if (
+    rawLower === "âm tính" ||
+    rawLower === "am tinh" ||
+    rawLower === "âm" ||
+    rawLower === "am"
+  ) {
+    const allNeg: Record<string, "Âm" | "Dương" | ""> = {};
+    subs.forEach((k) => {
+      allNeg[k] = "Âm";
+    });
+    return {
+      ok: true,
+      normalized: formatMultiResult(maTest, allNeg),
+      error: "",
+    };
   }
 
   for (const key of subs) {
     const re = buildSubKeyRegex(key);
     let m: RegExpExecArray | null;
-    let seen = '';
+    let seen = "";
     while ((m = re.exec(raw)) !== null) {
-      const vRaw = String(m[1] || '').trim().toLowerCase();
-      if (vRaw === '?') continue;
-      const norm = (vRaw.startsWith('dương') || vRaw.startsWith('duong') || vRaw === '+' || vRaw === 'd') ? 'Dương' : 'Âm';
+      const vRaw = String(m[1] || "")
+        .trim()
+        .toLowerCase();
+      if (vRaw === "?") continue;
+      const norm =
+        vRaw.startsWith("dương") ||
+        vRaw.startsWith("duong") ||
+        vRaw === "+" ||
+        vRaw === "d"
+          ? "Dương"
+          : "Âm";
       if (seen && seen !== norm) {
-        return { ok: false, normalized: raw, error: `Chân "${key}" bị nhập lặp lại với 2 giá trị mâu thuẫn!` };
+        return {
+          ok: false,
+          normalized: raw,
+          error: `Chân "${key}" bị nhập lặp lại với 2 giá trị mâu thuẫn!`,
+        };
       }
       seen = norm;
     }
   }
 
   const { map, extraNote } = parseMultiResultWithNote(maTest, raw);
-  const missing = subs.filter(k => !map[k]);
+  const missing = subs.filter((k) => !map[k]);
   if (missing.length > 0) {
     return {
       ok: false,
       normalized: raw,
-      error: `Xét nghiệm [${maTest}] chưa chọn đủ kết quả cho chân: ${missing.join(', ')}`
+      error: `Xét nghiệm [${maTest}] chưa chọn đủ kết quả cho chân: ${missing.join(
+        ", "
+      )}`,
     };
   }
-  return { ok: true, normalized: formatMultiResult(maTest, map, extraNote), error: '' };
+  return {
+    ok: true,
+    normalized: formatMultiResult(maTest, map, extraNote),
+    error: "",
+  };
 }
 
 /**
@@ -470,32 +650,55 @@ export function validateAndNormalizeMulti(maTest: string, rawKetQua: string): {
  * - Đối với WIDAL (8 chân): Nếu cả 8 chân đều Âm -> hiện "Âm tính". Nếu có chân Dương -> chỉ hiện đúng các chân Dương: "Typhi O (D), AO (D)".
  * - Đối với DRUG4 / DENGUE / KSTSR: Hiện "MOP (D)", "AMP (Â)" kèm ghi chú lâm sàng bên dưới nếu có.
  */
-export function formatShortMultiSummary(maTest: string, ketQua: string): string {
-  const code = String(maTest || '').trim().toUpperCase();
+export function formatShortMultiSummary(
+  maTest: string,
+  ketQua: string
+): string {
+  const code = String(maTest || "")
+    .trim()
+    .toUpperCase();
   const subs = getSubTests(code);
-  if (!subs || !ketQua) return ketQua || '';
+  if (!subs || !ketQua) return ketQua || "";
   const { map, extraNote } = parseMultiResultWithNote(code, ketQua);
-  const hasAny = subs.some(k => map[k] !== '');
+  const hasAny = subs.some((k) => map[k] !== "");
   if (!hasAny) return ketQua;
 
-  if (code === 'WIDAL') {
-    const posList = subs.filter(k => map[k] === 'Dương');
-    const mainText = posList.length === 0 ? 'Âm tính' : posList.map(k => `${k} (D)`).join(', ');
+  if (code === "WIDAL") {
+    const posList = subs.filter((k) => map[k] === "Dương");
+    const mainText =
+      posList.length === 0
+        ? "Âm tính"
+        : posList.map((k) => `${k} (D)`).join(", ");
     return extraNote ? `${mainText} (${extraNote})` : mainText;
   }
 
-  const parts = subs.map(k => {
-    const label = k === 'Codein' ? 'COD' : k === 'Heroin' ? 'HER' : k === 'P. falciparum' ? 'P.falci' : k === 'P. vivax' ? 'P.vivax' : k;
-    const v = map[k];
-    const shortV = v === 'Dương' ? 'D' : v === 'Âm' ? 'Â' : '?';
-    return `${label} (${shortV})`;
-  }).join(' | ');
+  const parts = subs
+    .map((k) => {
+      const label =
+        k === "Codein"
+          ? "COD"
+          : k === "Heroin"
+          ? "HER"
+          : k === "P. falciparum"
+          ? "P.falci"
+          : k === "P. vivax"
+          ? "P.vivax"
+          : k;
+      const v = map[k];
+      const shortV = v === "Dương" ? "D" : v === "Âm" ? "Â" : "?";
+      return `${label} (${shortV})`;
+    })
+    .join(" | ");
   return extraNote ? `${parts} | Ghi chú: ${extraNote}` : parts;
 }
 
 /* ==================== LƯU TRỮ BỀN VỮNG & TÍNH TỒN KHO BM.13 ==================== */
 
-function loadJSON<T>(key: string, fallback: T, validator?: (v: any) => boolean): T {
+function loadJSON<T>(
+  key: string,
+  fallback: T,
+  validator?: (v: any) => boolean
+): T {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return fallback;
@@ -512,7 +715,9 @@ function usePersistentState<T>(
   initialValue: T,
   validator?: (v: any) => boolean
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [state, setState] = useState<T>(() => loadJSON(key, initialValue, validator));
+  const [state, setState] = useState<T>(() =>
+    loadJSON(key, initialValue, validator)
+  );
 
   useEffect(() => {
     try {
@@ -529,8 +734,8 @@ function usePersistentState<T>(
         } catch {}
       }
     };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [key, validator]);
 
   return [state, setState];
@@ -540,7 +745,7 @@ function safeParseObj(str: string | undefined): Record<string, any> {
   if (!str) return {};
   try {
     const o = JSON.parse(str);
-    return o && typeof o === 'object' ? o : {};
+    return o && typeof o === "object" ? o : {};
   } catch {
     return {};
   }
@@ -566,14 +771,24 @@ export function computeDaySingle(
   dirtyOverrides: Record<string, any>,
   prevDayTonCuoi?: Record<string, number> | null
 ): DayComputed {
-  const stockLiveTests = liveTests.filter(t => isStockTestCode(t.code) && !t.noStock);
+  const stockLiveTests = liveTests.filter(
+    (t) => isStockTestCode(t.code) && !t.noStock
+  );
 
-  const usage: Record<ShiftNumber, Record<string, number>> = { 1: {}, 2: {}, 3: {}, 4: {} };
+  const usage: Record<ShiftNumber, Record<string, number>> = {
+    1: {},
+    2: {},
+    3: {},
+    4: {},
+  };
   const addUsage = (item: QueueItem | null | undefined) => {
-    if (!item || String(item.ngayBC || '').trim() !== targetDate) return;
+    if (!item || String(item.ngayBC || "").trim() !== targetDate) return;
     const caNum = Number(item.caTruc);
-    const ca: ShiftNumber = (caNum === 1 || caNum === 2 || caNum === 3 || caNum === 4) ? caNum : 1;
-    const code = String(item.maTest || '').trim().toUpperCase();
+    const ca: ShiftNumber =
+      caNum === 1 || caNum === 2 || caNum === 3 || caNum === 4 ? caNum : 1;
+    const code = String(item.maTest || "")
+      .trim()
+      .toUpperCase();
     if (!isStockTestCode(code)) return;
     usage[ca][code] = (usage[ca][code] || 0) + 1;
   };
@@ -582,20 +797,22 @@ export function computeDaySingle(
 
   let dayRow: RawBM13Row | undefined;
   const shiftRows: Partial<Record<ShiftNumber, RawBM13Row>> = {};
-  let fallbackPrevTonCuoi: Record<string, number> | null = prevDayTonCuoi || null;
-  let fallbackPrevDate = '';
+  let fallbackPrevTonCuoi: Record<string, number> | null =
+    prevDayTonCuoi || null;
+  let fallbackPrevDate = "";
 
   for (const r of bm13Raw) {
     if (!r) continue;
-    const rDate = String(r.ngayBC || '').trim();
+    const rDate = String(r.ngayBC || "").trim();
     const rCa = Number(r.caTruc);
     if (rDate === targetDate) {
       if (rCa === 0) dayRow = r;
-      else if (rCa === 1 || rCa === 2 || rCa === 3 || rCa === 4) shiftRows[rCa] = r;
+      else if (rCa === 1 || rCa === 2 || rCa === 3 || rCa === 4)
+        shiftRows[rCa] = r;
     } else if (!prevDayTonCuoi && rDate && rDate < targetDate && rCa === 0) {
       if (rDate >= fallbackPrevDate) {
         const pj = safeParseObj(r.dataJson);
-        if (pj.tonCuoi && typeof pj.tonCuoi === 'object') {
+        if (pj.tonCuoi && typeof pj.tonCuoi === "object") {
           fallbackPrevDate = rDate;
           fallbackPrevTonCuoi = pj.tonCuoi;
         }
@@ -607,34 +824,40 @@ export function computeDaySingle(
   const dirtyDay = dirtyOverrides[`${targetDate}_DAY`] || {};
   const manualTonDau: Record<string, number> = {
     ...(dayJson.tonDau || {}),
-    ...(dirtyDay.tonDau || {})
+    ...(dirtyDay.tonDau || {}),
   };
-  const ghiChu = dirtyDay.ghiChu !== undefined ? String(dirtyDay.ghiChu) : (dayRow?.ghiChu || '');
+  const ghiChu =
+    dirtyDay.ghiChu !== undefined
+      ? String(dirtyDay.ghiChu)
+      : dayRow?.ghiChu || "";
 
   const isPastDay = targetDate < businessDate();
-  const snapObj = dayJson.testMetaSnapshot && typeof dayJson.testMetaSnapshot === 'object' ? dayJson.testMetaSnapshot : null;
+  const snapObj =
+    dayJson.testMetaSnapshot && typeof dayJson.testMetaSnapshot === "object"
+      ? dayJson.testMetaSnapshot
+      : null;
 
   let effectiveTests: TestConfig[] = [];
   if (isPastDay && snapObj && Object.keys(snapObj).length > 0) {
     const seen: Record<string, boolean> = {};
-    stockLiveTests.forEach(t => {
+    stockLiveTests.forEach((t) => {
       if (snapObj[t.code]) {
         seen[t.code] = true;
         effectiveTests.push({
           code: t.code,
           name: snapObj[t.code].name || t.name,
           unit: snapObj[t.code].unit || t.unit,
-          quota: Number(snapObj[t.code].quota ?? t.quota)
+          quota: Number(snapObj[t.code].quota ?? t.quota),
         });
       }
     });
-    Object.keys(snapObj).forEach(code => {
+    Object.keys(snapObj).forEach((code) => {
       if (!seen[code] && isStockTestCode(code)) {
         effectiveTests.push({
           code,
           name: snapObj[code].name || code,
-          unit: snapObj[code].unit || 'TEST',
-          quota: Number(snapObj[code].quota || 0)
+          unit: snapObj[code].unit || "TEST",
+          quota: Number(snapObj[code].quota || 0),
         });
       }
     });
@@ -643,21 +866,31 @@ export function computeDaySingle(
   }
 
   const tonDau: Record<string, number> = {};
-  const shifts: Record<ShiftNumber, Record<string, ShiftCellData>> = { 1: {}, 2: {}, 3: {}, 4: {} };
+  const shifts: Record<ShiftNumber, Record<string, ShiftCellData>> = {
+    1: {},
+    2: {},
+    3: {},
+    4: {},
+  };
   const tonCuoiNgay: Record<string, number> = {};
 
-  const shiftJsonByCa: Record<ShiftNumber, Record<string, any>> = { 1: {}, 2: {}, 3: {}, 4: {} };
-  ([1, 2, 3, 4] as ShiftNumber[]).forEach(ca => {
+  const shiftJsonByCa: Record<ShiftNumber, Record<string, any>> = {
+    1: {},
+    2: {},
+    3: {},
+    4: {},
+  };
+  ([1, 2, 3, 4] as ShiftNumber[]).forEach((ca) => {
     const rawJson = shiftRows[ca] ? safeParseObj(shiftRows[ca]!.dataJson) : {};
     const dirtyCa = dirtyOverrides[`${targetDate}_CA${ca}`]?.cells || {};
     const merged: Record<string, any> = { ...rawJson };
-    Object.keys(dirtyCa).forEach(code => {
+    Object.keys(dirtyCa).forEach((code) => {
       merged[code] = { ...(merged[code] || {}), ...dirtyCa[code] };
     });
     shiftJsonByCa[ca] = merged;
   });
 
-  effectiveTests.forEach(t => {
+  effectiveTests.forEach((t) => {
     const code = t.code;
     const base =
       manualTonDau[code] !== undefined
@@ -668,7 +901,7 @@ export function computeDaySingle(
     tonDau[code] = base;
 
     let running = base;
-    ([1, 2, 3, 4] as ShiftNumber[]).forEach(ca => {
+    ([1, 2, 3, 4] as ShiftNumber[]).forEach((ca) => {
       const cellRaw = shiftJsonByCa[ca][code] || {};
       const boiHoan = clampInt(cellRaw.boiHoan, 0, 99999);
       const suDungQC = clampInt(cellRaw.suDungQC, 0, 99999);
@@ -681,20 +914,25 @@ export function computeDaySingle(
   });
 
   const meta: Record<ShiftNumber, ShiftMeta> = {
-    1: { gioGiao: '', nguoiGiao: '', nguoiNhan: '', trangThai: 'OPEN' },
-    2: { gioGiao: '', nguoiGiao: '', nguoiNhan: '', trangThai: 'OPEN' },
-    3: { gioGiao: '', nguoiGiao: '', nguoiNhan: '', trangThai: 'OPEN' },
-    4: { gioGiao: '', nguoiGiao: '', nguoiNhan: '', trangThai: 'OPEN' }
+    1: { gioGiao: "", nguoiGiao: "", nguoiNhan: "", trangThai: "OPEN" },
+    2: { gioGiao: "", nguoiGiao: "", nguoiNhan: "", trangThai: "OPEN" },
+    3: { gioGiao: "", nguoiGiao: "", nguoiNhan: "", trangThai: "OPEN" },
+    4: { gioGiao: "", nguoiGiao: "", nguoiNhan: "", trangThai: "OPEN" },
   };
-  ([1, 2, 3, 4] as ShiftNumber[]).forEach(ca => {
+  ([1, 2, 3, 4] as ShiftNumber[]).forEach((ca) => {
     const r = shiftRows[ca];
     const dirtyMeta = dirtyOverrides[`${targetDate}_CA${ca}`]?.meta;
-    const rawStatus = (dirtyMeta?.trangThai ?? r?.trangThai ?? 'OPEN') as ShiftStatus;
+    const rawStatus = (dirtyMeta?.trangThai ??
+      r?.trangThai ??
+      "OPEN") as ShiftStatus;
     meta[ca] = {
-      gioGiao: dirtyMeta?.gioGiao ?? r?.gioGiao ?? '',
-      nguoiGiao: dirtyMeta?.nguoiGiao ?? r?.nguoiGiao ?? '',
-      nguoiNhan: dirtyMeta?.nguoiNhan ?? r?.nguoiNhan ?? '',
-      trangThai: (rawStatus === 'PENDING_RECEIVE' || rawStatus === 'HOAN_THANH') ? rawStatus : 'OPEN'
+      gioGiao: dirtyMeta?.gioGiao ?? r?.gioGiao ?? "",
+      nguoiGiao: dirtyMeta?.nguoiGiao ?? r?.nguoiGiao ?? "",
+      nguoiNhan: dirtyMeta?.nguoiNhan ?? r?.nguoiNhan ?? "",
+      trangThai:
+        rawStatus === "PENDING_RECEIVE" || rawStatus === "HOAN_THANH"
+          ? rawStatus
+          : "OPEN",
     };
   });
 
@@ -706,11 +944,9 @@ export function computeDaySingle(
     manualTonDau,
     shifts,
     meta,
-    tonCuoiNgay
+    tonCuoiNgay,
   };
 }
-
-// === ĐIỂM NỐI PART 1 -> PART 2 (Dán Part 2 nối tiếp ngay bên dưới dòng này) ===
 
 /* ============================ GIAO THỨC API (RPC) ============================ */
 
@@ -726,60 +962,113 @@ export async function rpcCall(
   token?: string,
   timeoutMs = 22000
 ): Promise<RpcResult> {
-  const url = String(apiUrl || '').trim();
-  if (!url || url.includes('THAY_BANG_URL_DEPLOY')) {
-    return { net: false, body: { status: 'error', code: 'NO_URL', message: 'Chưa cấu hình URL API Google Apps Script.' } };
+  const url = String(apiUrl || "").trim();
+  if (!url || url.includes("THAY_BANG_URL_DEPLOY")) {
+    return {
+      net: false,
+      body: {
+        status: "error",
+        code: "NO_URL",
+        message: "Chưa cấu hình URL API Google Apps Script.",
+      },
+    };
   }
   const ctrl = new AbortController();
   const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action, token, ...payload }),
       signal: ctrl.signal,
-      redirect: 'follow'
+      redirect: "follow",
     });
     window.clearTimeout(timer);
     const text = await res.text();
     try {
       const json = JSON.parse(text);
-      if (json && typeof json === 'object') {
-        if (typeof json.serverTimeMs === 'number') updateServerOffset(json.serverTimeMs);
+      if (json && typeof json === "object") {
+        if (typeof json.serverTimeMs === "number")
+          updateServerOffset(json.serverTimeMs);
         return { net: true, body: json };
       }
-      return { net: false, body: { status: 'error', code: 'BAD_JSON', message: 'Phản hồi máy chủ không đúng định dạng.' } };
+      return {
+        net: false,
+        body: {
+          status: "error",
+          code: "BAD_JSON",
+          message: "Phản hồi máy chủ không đúng định dạng.",
+        },
+      };
     } catch {
-      return { net: false, body: { status: 'error', code: 'PARSE_ERR', message: 'Không đọc được JSON từ Google Apps Script.' } };
+      return {
+        net: false,
+        body: {
+          status: "error",
+          code: "PARSE_ERR",
+          message: "Không đọc được JSON từ Google Apps Script.",
+        },
+      };
     }
   } catch (err: any) {
     window.clearTimeout(timer);
     return {
       net: false,
-      body: { status: 'error', code: 'NETWORK', message: err?.name === 'AbortError' ? 'Quá thời gian chờ phản hồi máy chủ.' : 'Mất kết nối mạng.' }
+      body: {
+        status: "error",
+        code: "NETWORK",
+        message:
+          err?.name === "AbortError"
+            ? "Quá thời gian chờ phản hồi máy chủ."
+            : "Mất kết nối mạng.",
+      },
     };
   }
 }
 
-export async function testApiEndpoint(apiUrl: string): Promise<{ ok: boolean; message: string }> {
-  const url = String(apiUrl || '').trim();
-  if (!url.startsWith('https://script.google.com/macros/s/') || !url.endsWith('/exec')) {
-    return { ok: false, message: 'URL phải bắt đầu bằng https://script.google.com/macros/s/... và kết thúc bằng /exec' };
+export async function testApiEndpoint(
+  apiUrl: string
+): Promise<{ ok: boolean; message: string }> {
+  const url = String(apiUrl || "").trim();
+  if (
+    !url.startsWith("https://script.google.com/macros/s/") ||
+    !url.endsWith("/exec")
+  ) {
+    return {
+      ok: false,
+      message:
+        "URL phải bắt đầu bằng https://script.google.com/macros/s/... và kết thúc bằng /exec",
+    };
   }
   try {
     const ctrl = new AbortController();
     const timer = window.setTimeout(() => ctrl.abort(), 12000);
-    const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: ctrl.signal });
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: ctrl.signal,
+    });
     window.clearTimeout(timer);
     const txt = await res.text();
     const json = JSON.parse(txt);
-    if (json && json.status === 'success') {
-      if (typeof json.serverTimeMs === 'number') updateServerOffset(json.serverTimeMs);
-      return { ok: true, message: 'Kết nối máy chủ Google Apps Script thành công!' };
+    if (json && json.status === "success") {
+      if (typeof json.serverTimeMs === "number")
+        updateServerOffset(json.serverTimeMs);
+      return {
+        ok: true,
+        message: "Kết nối máy chủ Google Apps Script thành công!",
+      };
     }
-    return { ok: false, message: 'Endpoint phản hồi nhưng không đúng chuẩn API Khoa Xét Nghiệm.' };
+    return {
+      ok: false,
+      message: "Endpoint phản hồi nhưng không đúng chuẩn API Khoa Xét Nghiệm.",
+    };
   } catch {
-    return { ok: false, message: 'Không thể kết nối tới URL này (Kiểm tra quyền Deploy: Anyone / Bất kỳ ai).' };
+    return {
+      ok: false,
+      message:
+        "Không thể kết nối tới URL này (Kiểm tra quyền Deploy: Anyone / Bất kỳ ai).",
+    };
   }
 }
 
@@ -790,13 +1079,19 @@ interface ErrorBoundaryState {
   errorMsg: string;
 }
 
-export class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+export class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ErrorBoundaryState
+> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, errorMsg: '' };
+    this.state = { hasError: false, errorMsg: "" };
   }
   static getDerivedStateFromError(error: any): ErrorBoundaryState {
-    return { hasError: true, errorMsg: String(error?.message || error || 'Lỗi không xác định') };
+    return {
+      hasError: true,
+      errorMsg: String(error?.message || error || "Lỗi không xác định"),
+    };
   }
   handleSafeReset = () => {
     try {
@@ -812,11 +1107,16 @@ export class AppErrorBoundary extends React.Component<{ children: React.ReactNod
           <div className="max-w-md w-full bg-slate-800 border border-rose-500/40 rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-rose-400">
               <AlertOctagon className="w-8 h-8 shrink-0" />
-              <h2 className="text-lg font-black uppercase">Hệ thống tự bảo vệ an toàn</h2>
+              <h2 className="text-lg font-black uppercase">
+                Hệ thống tự bảo vệ an toàn
+              </h2>
             </div>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Phát hiện dữ liệu bộ nhớ đệm không đồng nhất: <span className="text-rose-300 font-mono">{this.state.errorMsg}</span>.
-              Toàn bộ hàng đợi đồng bộ của bạn vẫn được giữ an toàn.
+              Phát hiện dữ liệu bộ nhớ đệm không đồng nhất:{" "}
+              <span className="text-rose-300 font-mono">
+                {this.state.errorMsg}
+              </span>
+              . Toàn bộ hàng đợi đồng bộ của bạn vẫn được giữ an toàn.
             </p>
             <button
               onClick={this.handleSafeReset}
@@ -840,6 +1140,7 @@ interface MultiPanelResultInputProps {
   onChange: (nextVal: string) => void;
   onEnterSubmit?: () => void;
   compact?: boolean;
+  disabled?: boolean;
 }
 
 export function MultiPanelResultInput({
@@ -847,14 +1148,19 @@ export function MultiPanelResultInput({
   value,
   onChange,
   onEnterSubmit,
-  compact = false
+  compact = false,
+  disabled = false,
 }: MultiPanelResultInputProps) {
-  const code = String(maTest || '').trim().toUpperCase();
+  const code = String(maTest || "")
+    .trim()
+    .toUpperCase();
   const subs = getSubTests(code) || [];
-  
+
   // Sử dụng state cục bộ để đảm bảo nút bấm luôn nhạy và lên màu ngay lập tức
-  const [localMap, setLocalMap] = useState<Record<string, 'Âm' | 'Dương' | ''>>({});
-  const [note, setNote] = useState('');
+  const [localMap, setLocalMap] = useState<Record<string, "Âm" | "Dương" | "">>(
+    {}
+  );
+  const [note, setNote] = useState("");
 
   useEffect(() => {
     const { map, extraNote } = parseMultiResultWithNote(code, value);
@@ -862,24 +1168,37 @@ export function MultiPanelResultInput({
     setNote(extraNote);
   }, [code, value]);
 
-  const updateValue = (newMap: Record<string, 'Âm' | 'Dương' | ''>, newNote: string) => {
+  const updateValue = (
+    newMap: Record<string, "Âm" | "Dương" | "">,
+    newNote: string
+  ) => {
+    if (disabled) return;
     onChange(formatMultiResult(code, newMap, newNote));
   };
 
-  const handleToggleSub = (subKey: string, targetVal: 'Âm' | 'Dương') => {
+  const handleToggleSub = (subKey: string, targetVal: "Âm" | "Dương") => {
+    if (disabled) return;
     const nextMap = { ...localMap, [subKey]: targetVal };
     setLocalMap(nextMap);
     updateValue(nextMap, note);
   };
 
   const handleAllNegative = () => {
-    const nextMap: Record<string, 'Âm' | 'Dương' | ''> = {};
-    subs.forEach(k => { nextMap[k] = 'Âm'; });
+    if (disabled) return;
+    const nextMap: Record<string, "Âm" | "Dương" | ""> = {};
+    subs.forEach((k) => {
+      nextMap[k] = "Âm";
+    });
     setLocalMap(nextMap);
     updateValue(nextMap, note);
   };
 
-  const gridClass = subs.length === 8 ? 'grid-cols-2 sm:grid-cols-4' : subs.length === 5 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2';
+  const gridClass =
+    subs.length === 8
+      ? "grid-cols-2 sm:grid-cols-4"
+      : subs.length === 5
+      ? "grid-cols-2 sm:grid-cols-3"
+      : "grid-cols-2";
 
   return (
     <div className="space-y-2">
@@ -889,36 +1208,48 @@ export function MultiPanelResultInput({
         </span>
         <button
           type="button"
+          disabled={disabled}
           onClick={handleAllNegative}
-          className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[11px] font-black transition"
+          className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-700 border border-blue-200 text-[11px] font-black transition"
         >
           ⚡ Tất cả Âm
         </button>
       </div>
 
       <div className={`grid ${gridClass} gap-1.5`}>
-        {subs.map(subKey => {
+        {subs.map((subKey) => {
           const curVal = localMap[subKey];
-          const isNeg = curVal === 'Âm';
-          const isPos = curVal === 'Dương';
+          const isNeg = curVal === "Âm";
+          const isPos = curVal === "Dương";
           return (
-            <div key={subKey} className="rounded-xl border p-1.5 bg-slate-50 border-slate-200">
-              <div className="text-[11px] font-black text-slate-700 truncate mb-1 text-center">{subKey}</div>
+            <div
+              key={subKey}
+              className="rounded-xl border p-1.5 bg-slate-50 border-slate-200"
+            >
+              <div className="text-[11px] font-black text-slate-700 truncate mb-1 text-center">
+                {subKey}
+              </div>
               <div className="grid grid-cols-2 gap-1">
                 <button
                   type="button"
-                  onClick={() => handleToggleSub(subKey, 'Âm')}
-                  className={`py-1 rounded-lg text-[11px] font-black transition ${
-                    isNeg ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-blue-50'
+                  disabled={disabled}
+                  onClick={() => handleToggleSub(subKey, "Âm")}
+                  className={`py-1 rounded-lg text-[11px] font-black transition disabled:opacity-50 ${
+                    isNeg
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-blue-50"
                   }`}
                 >
                   Âm
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleToggleSub(subKey, 'Dương')}
-                  className={`py-1 rounded-lg text-[11px] font-black transition ${
-                    isPos ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-red-50'
+                  disabled={disabled}
+                  onClick={() => handleToggleSub(subKey, "Dương")}
+                  className={`py-1 rounded-lg text-[11px] font-black transition disabled:opacity-50 ${
+                    isPos
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-red-50"
                   }`}
                 >
                   Dương
@@ -931,11 +1262,19 @@ export function MultiPanelResultInput({
 
       <input
         type="text"
+        disabled={disabled}
         value={value}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && onEnterSubmit) { e.preventDefault(); onEnterSubmit(); } }}
-        placeholder={`Ghi chú hoặc nhập kết quả thủ công...`}
-        className={`w-full rounded-xl border border-slate-200 bg-white px-3 ${compact ? 'py-1.5 text-xs' : 'py-2 text-xs'} font-semibold text-slate-800`}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && onEnterSubmit && !disabled) {
+            e.preventDefault();
+            onEnterSubmit();
+          }
+        }}
+        placeholder="Ghi chú hoặc nhập kết quả thủ công..."
+        className={`w-full rounded-xl border border-slate-200 bg-white disabled:bg-slate-100 px-3 ${
+          compact ? "py-1.5 text-xs" : "py-2 text-xs"
+        } font-semibold text-slate-800`}
       />
     </div>
   );
@@ -945,47 +1284,60 @@ export function MultiPanelResultInput({
 
 interface LoginScreenProps {
   apiUrl: string;
-  onSuccess: (auth: AuthState) => void;
+  onSuccess: (auth: AuthState, initialSession?: ActiveSession | null) => void;
   onChangeApiUrl: (nextUrl: string) => void;
 }
 
-export function LoginScreen({ apiUrl, onSuccess, onChangeApiUrl }: LoginScreenProps) {
-  const [id, setId] = useState('');
-  const [password, setPassword] = useState('');
+export function LoginScreen({
+  apiUrl,
+  onSuccess,
+  onChangeApiUrl,
+}: LoginScreenProps) {
+  const [id, setId] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showUrlConfig, setShowUrlConfig] = useState(false);
   const [tempUrl, setTempUrl] = useState(apiUrl);
   const [testingUrl, setTestingUrl] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     if (!id.trim() || !password.trim()) {
-      setError('Vui lòng nhập đầy đủ ID và Mật khẩu.');
+      setError("Vui lòng nhập đầy đủ ID và Mật khẩu.");
       return;
     }
     setLoading(true);
-    const res = await rpcCall(apiUrl, 'login', { id: id.trim(), password: password.trim() });
+    const res = await rpcCall(apiUrl, "login", {
+      id: id.trim(),
+      password: password.trim(),
+    });
     setLoading(false);
     if (!res.net) {
-      setError(res.body.message || 'Không thể kết nối máy chủ. Kiểm tra mạng hoặc cấu hình URL API.');
+      setError(
+        res.body.message ||
+          "Không thể kết nối máy chủ. Kiểm tra mạng hoặc cấu hình URL API."
+      );
       return;
     }
-    if (res.body.status !== 'success') {
-      setError(res.body.message || 'Đăng nhập thất bại.');
+    if (res.body.status !== "success") {
+      setError(res.body.message || "Đăng nhập thất bại.");
       return;
     }
-    onSuccess({
-      token: res.body.token,
-      user: res.body.user,
-      mustChange: Boolean(res.body.mustChange)
-    });
+    onSuccess(
+      {
+        token: res.body.token,
+        user: res.body.user,
+        mustChange: Boolean(res.body.mustChange),
+      },
+      res.body.activeSession || null
+    );
   };
 
   const handleSaveEndpoint = async () => {
     setTestingUrl(true);
-    setError('');
+    setError("");
     const check = await testApiEndpoint(tempUrl);
     setTestingUrl(false);
     if (!check.ok) {
@@ -1027,7 +1379,7 @@ export function LoginScreen({ apiUrl, onSuccess, onChangeApiUrl }: LoginScreenPr
             <input
               type="text"
               value={id}
-              onChange={e => setId(e.target.value)}
+              onChange={(e) => setId(e.target.value)}
               placeholder="Ví dụ: thlong, lhthinh..."
               autoFocus
               className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -1041,7 +1393,7 @@ export function LoginScreen({ apiUrl, onSuccess, onChangeApiUrl }: LoginScreenPr
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Nhập mật khẩu..."
               className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
@@ -1052,14 +1404,19 @@ export function LoginScreen({ apiUrl, onSuccess, onChangeApiUrl }: LoginScreenPr
             disabled={loading}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 disabled:opacity-60 text-white font-black text-sm uppercase tracking-wider shadow-lg shadow-sky-600/25 transition"
           >
-            {loading ? 'Đang xác thực...' : 'Đăng nhập hệ thống'}
+            {loading ? "Đang xác thực..." : "Đăng nhập hệ thống"}
           </button>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[11px] text-slate-400 font-semibold">BM.04 & BM.13 • ISO 15189</span>
+            <span className="text-[11px] text-slate-400 font-semibold">
+              BM.04 & BM.13 • ISO 15189
+            </span>
             <button
               type="button"
-              onClick={() => { setTempUrl(apiUrl); setShowUrlConfig(!showUrlConfig); }}
+              onClick={() => {
+                setTempUrl(apiUrl);
+                setShowUrlConfig(!showUrlConfig);
+              }}
               className="text-[11px] font-bold text-sky-600 hover:underline flex items-center gap-1"
             >
               <Database className="w-3.5 h-3.5" /> Cấu hình URL API
@@ -1074,7 +1431,7 @@ export function LoginScreen({ apiUrl, onSuccess, onChangeApiUrl }: LoginScreenPr
               <input
                 type="text"
                 value={tempUrl}
-                onChange={e => setTempUrl(e.target.value)}
+                onChange={(e) => setTempUrl(e.target.value)}
                 className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono text-slate-700"
               />
               <button
@@ -1083,7 +1440,9 @@ export function LoginScreen({ apiUrl, onSuccess, onChangeApiUrl }: LoginScreenPr
                 onClick={handleSaveEndpoint}
                 className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold"
               >
-                {testingUrl ? 'Đang kiểm tra kết nối...' : 'Kiểm tra & Lưu kết nối'}
+                {testingUrl
+                  ? "Đang kiểm tra kết nối..."
+                  : "Kiểm tra & Lưu kết nối"}
               </button>
             </div>
           )}
@@ -1120,40 +1479,45 @@ export function ChangePasswordModal({
   userName,
   onClose,
   onChanged,
-  onLogout
+  onLogout,
 }: ChangePasswordModalProps) {
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState("");
 
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr('');
+    setErr("");
     if (newPassword.trim().length < 6) {
-      setErr('Mật khẩu mới phải có ít nhất 6 ký tự.');
+      setErr("Mật khẩu mới phải có ít nhất 6 ký tự.");
       return;
     }
     if (newPassword.trim() !== confirmPw.trim()) {
-      setErr('Mật khẩu xác nhận không khớp.');
+      setErr("Mật khẩu xác nhận không khớp.");
       return;
     }
     setLoading(true);
-    const res = await rpcCall(apiUrl, 'changePassword', {
-      oldPassword: oldPassword.trim(),
-      newPassword: newPassword.trim()
-    }, token);
+    const res = await rpcCall(
+      apiUrl,
+      "changePassword",
+      {
+        oldPassword: oldPassword.trim(),
+        newPassword: newPassword.trim(),
+      },
+      token
+    );
     setLoading(false);
-    if (!res.net || res.body.status !== 'success') {
-      setErr(res.body.message || 'Không thể đổi mật khẩu.');
+    if (!res.net || res.body.status !== "success") {
+      setErr(res.body.message || "Không thể đổi mật khẩu.");
       return;
     }
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPw('');
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmPw("");
     onChanged(res.body.token);
   };
 
@@ -1167,13 +1531,20 @@ export function ChangePasswordModal({
             </div>
             <div>
               <h3 className="text-base font-black text-slate-900 uppercase">
-                {forced ? 'Đổi mật khẩu mặc định bắt buộc' : 'Đổi mật khẩu cá nhân'}
+                {forced
+                  ? "Đổi mật khẩu mặc định bắt buộc"
+                  : "Đổi mật khẩu cá nhân"}
               </h3>
-              <p className="text-xs font-semibold text-slate-500">Nhân viên: {userName}</p>
+              <p className="text-xs font-semibold text-slate-500">
+                Nhân viên: {userName}
+              </p>
             </div>
           </div>
           {!forced && (
-            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+            >
               <X className="w-5 h-5" />
             </button>
           )}
@@ -1181,7 +1552,8 @@ export function ChangePasswordModal({
 
         {forced && (
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
-            Tài khoản của bạn đang dùng mật khẩu mặc định. Để bảo vệ dữ liệu bệnh nhân, vui lòng thiết lập mật khẩu riêng trước khi làm việc.
+            Tài khoản của bạn đang dùng mật khẩu mặc định. Để bảo vệ dữ liệu
+            bệnh nhân, vui lòng thiết lập mật khẩu riêng trước khi làm việc.
           </div>
         )}
 
@@ -1193,31 +1565,37 @@ export function ChangePasswordModal({
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Mật khẩu hiện tại</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">
+              Mật khẩu hiện tại
+            </label>
             <input
               type="password"
               value={oldPassword}
-              onChange={e => setOldPassword(e.target.value)}
+              onChange={(e) => setOldPassword(e.target.value)}
               required
               className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Mật khẩu mới (tối thiểu 6 ký tự)</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">
+              Mật khẩu mới (tối thiểu 6 ký tự)
+            </label>
             <input
               type="password"
               value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
+              onChange={(e) => setNewPassword(e.target.value)}
               required
               className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Nhập lại mật khẩu mới</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">
+              Nhập lại mật khẩu mới
+            </label>
             <input
               type="password"
               value={confirmPw}
-              onChange={e => setConfirmPw(e.target.value)}
+              onChange={(e) => setConfirmPw(e.target.value)}
               required
               className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold"
             />
@@ -1246,7 +1624,7 @@ export function ChangePasswordModal({
               disabled={loading}
               className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-black uppercase tracking-wider"
             >
-              {loading ? 'Đang lưu...' : 'Cập nhật mật khẩu'}
+              {loading ? "Đang lưu..." : "Cập nhật mật khẩu"}
             </button>
           </div>
         </form>
@@ -1270,36 +1648,41 @@ export function CheckerVerifyModal({
   token,
   mainUser,
   onClose,
-  onVerified
+  onVerified,
 }: CheckerVerifyModalProps) {
-  const [id, setId] = useState('');
-  const [password, setPassword] = useState('');
+  const [id, setId] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState("");
 
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr('');
+    setErr("");
     if (!id.trim() || !password.trim()) {
-      setErr('Vui lòng nhập ID và Mật khẩu của Người kiểm tra.');
+      setErr("Vui lòng nhập ID và Mật khẩu của Người kiểm tra.");
       return;
     }
     setLoading(true);
-    const res = await rpcCall(apiUrl, 'verifyChecker', { id: id.trim(), password: password.trim() }, token);
+    const res = await rpcCall(
+      apiUrl,
+      "verifyChecker",
+      { id: id.trim(), password: password.trim() },
+      token
+    );
     setLoading(false);
-    if (!res.net || res.body.status !== 'success') {
-      setErr(res.body.message || 'Xác thực Người kiểm tra thất bại.');
+    if (!res.net || res.body.status !== "success") {
+      setErr(res.body.message || "Xác thực Người kiểm tra thất bại.");
       return;
     }
-    setId('');
-    setPassword('');
+    setId("");
+    setPassword("");
     onVerified({
       id: res.body.checker.id,
       name: res.body.checker.name,
       proof: res.body.checkerProof,
-      verifiedForUserId: mainUser.id
+      verifiedForUserId: mainUser.id,
     });
   };
 
@@ -1312,11 +1695,18 @@ export function CheckerVerifyModal({
               <UserCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-slate-900 uppercase">Xác thực Người kiểm tra</h3>
-              <p className="text-xs font-semibold text-slate-500">Người thực hiện: {mainUser.name}</p>
+              <h3 className="text-base font-black text-slate-900 uppercase">
+                Xác thực Người kiểm tra
+              </h3>
+              <p className="text-xs font-semibold text-slate-500">
+                Người thực hiện: {mainUser.name}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1329,22 +1719,26 @@ export function CheckerVerifyModal({
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">ID Người kiểm tra</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">
+              ID Người kiểm tra
+            </label>
             <input
               type="text"
               value={id}
-              onChange={e => setId(e.target.value)}
+              onChange={(e) => setId(e.target.value)}
               placeholder="Nhập ID đồng nghiệp kiểm tra..."
               autoFocus
               className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Mật khẩu Người kiểm tra</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">
+              Mật khẩu Người kiểm tra
+            </label>
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Nhập mật khẩu..."
               className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold"
             />
@@ -1362,7 +1756,7 @@ export function CheckerVerifyModal({
               disabled={loading}
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider"
             >
-              {loading ? 'Đang ký...' : 'Xác nhận ký duyệt'}
+              {loading ? "Đang ký..." : "Xác nhận ký duyệt"}
             </button>
           </div>
         </form>
@@ -1376,20 +1770,24 @@ export function CheckerVerifyModal({
 interface EditBM04ModalProps {
   item: QueueItem | null;
   onClose: () => void;
-  onSave: (id: string, nextDocChung: DocChungValue, nextKetQua: string) => Promise<void>;
+  onSave: (
+    id: string,
+    nextDocChung: DocChungValue,
+    nextKetQua: string
+  ) => Promise<void>;
 }
 
 export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
-  const [docChung, setDocChung] = useState<DocChungValue>('Dương tính');
-  const [ketQua, setKetQua] = useState('');
-  const [err, setErr] = useState('');
+  const [docChung, setDocChung] = useState<DocChungValue>("Dương tính");
+  const [ketQua, setKetQua] = useState("");
+  const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (item) {
-      setDocChung(item.docChung === 'Âm Tính' ? 'Âm Tính' : 'Dương tính');
-      setKetQua(item.ketQua || '');
-      setErr('');
+      setDocChung(item.docChung === "Âm Tính" ? "Âm Tính" : "Dương tính");
+      setKetQua(item.ketQua || "");
+      setErr("");
     }
   }, [item]);
 
@@ -1399,7 +1797,7 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
   const theme = SHIFT_THEME[item.caTruc] || SHIFT_THEME[1];
 
   const handleConfirm = async () => {
-    setErr('');
+    setErr("");
     const check = validateAndNormalizeMulti(item.maTest, ketQua);
     if (!check.ok) {
       setErr(check.error);
@@ -1410,7 +1808,7 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
       await onSave(item.id, docChung, check.normalized);
       onClose();
     } catch (e: any) {
-      setErr(String(e?.message || 'Lỗi khi cập nhật kết quả.'));
+      setErr(String(e?.message || "Lỗi khi cập nhật kết quả."));
     } finally {
       setSaving(false);
     }
@@ -1422,25 +1820,40 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black ${theme.badgeBg} ${theme.badgeText}`}>
+              <span
+                className={`px-2.5 py-0.5 rounded-lg text-xs font-black ${theme.badgeBg} ${theme.badgeText}`}
+              >
                 Ca {item.caTruc}
               </span>
-              <span className="text-xs font-black text-amber-700 uppercase">[{item.tenXetNghiem}]</span>
-              <span className="text-sm font-black text-slate-900 uppercase">{item.hoTenBN}</span>
+              <span className="text-xs font-black text-amber-700 uppercase">
+                [{item.tenXetNghiem}]
+              </span>
+              <span className="text-sm font-black text-slate-900 uppercase">
+                {item.hoTenBN}
+              </span>
             </div>
             <p className="text-xs font-semibold text-slate-500 mt-1">
-              Barcode: <span className="font-bold text-slate-700">{item.barcode}</span> • Giờ trả KQ lần đầu (giữ nguyên):{' '}
-              <span className="font-bold text-sky-700">{item.thoiGianDocKQ}</span>
+              Barcode:{" "}
+              <span className="font-bold text-slate-700">{item.barcode}</span> •
+              Giờ trả KQ lần đầu (giữ nguyên):{" "}
+              <span className="font-bold text-sky-700">
+                {item.thoiGianDocKQ}
+              </span>
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-[11px] font-semibold text-amber-900">
-          Lưu ý: Thao tác cập nhật kết quả sẽ giữ nguyên thời gian trả kết quả lần đầu ({item.thoiGianDocKQ}), gắn nhãn{' '}
-          <span className="font-black">(Đã sửa)</span> trên màn hình (không in ra giấy A4) và lưu vết vào Sổ kiểm toán AUDIT_LOGS.
+          Lưu ý: Thao tác cập nhật kết quả sẽ giữ nguyên thời gian trả kết quả
+          lần đầu ({item.thoiGianDocKQ}), gắn nhãn{" "}
+          <span className="font-black">(Đã sửa)</span> trên màn hình (không in
+          ra giấy A4) và lưu vết vào Sổ kiểm toán AUDIT_LOGS.
         </div>
 
         {err && (
@@ -1449,26 +1862,30 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
           </div>
         )}
 
-<div className="space-y-3">
+        <div className="space-y-3">
           <div className="flex items-center justify-between bg-indigo-50/80 p-2.5 rounded-xl border border-indigo-200">
-            <span className="text-xs font-black uppercase text-indigo-900">Đọc chứng (Control):</span>
+            <span className="text-xs font-black uppercase text-indigo-900">
+              Đọc chứng (Control):
+            </span>
             <div className="flex items-center gap-1.5">
-              {(['Dương tính', 'Âm Tính'] as DocChungValue[]).map(val => {
+              {(["Dương tính", "Âm Tính"] as DocChungValue[]).map((val) => {
                 const active = docChung === val;
                 const activeCls =
-                  val === 'Dương tính'
-                    ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200'
-                    : 'bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200';
+                  val === "Dương tính"
+                    ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200"
+                    : "bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200";
                 return (
                   <button
                     key={val}
                     type="button"
                     onClick={() => setDocChung(val)}
                     className={`px-3.5 py-1 rounded-lg text-xs font-black border transition ${
-                      active ? activeCls : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                      active
+                        ? activeCls
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
-                    {val === 'Dương tính' ? '● Dương tính' : '○ Âm tính'}
+                    {val === "Dương tính" ? "● Dương tính" : "○ Âm tính"}
                   </button>
                 );
               })}
@@ -1484,26 +1901,28 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
             />
           ) : (
             <div className="space-y-2">
-              <label className="block text-xs font-black uppercase text-slate-600">Kết quả xét nghiệm:</label>
+              <label className="block text-xs font-black uppercase text-slate-600">
+                Kết quả xét nghiệm:
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setKetQua('Âm tính')}
+                  onClick={() => setKetQua("Âm tính")}
                   className={`py-2.5 rounded-xl text-xs font-black uppercase border transition ${
-                    ketQua.trim().toLowerCase() === 'âm tính'
-                      ? 'bg-sky-600 text-white border-sky-600 shadow-md'
-                      : 'bg-sky-50/60 text-sky-800 border-sky-200 hover:bg-sky-100'
+                    ketQua.trim().toLowerCase() === "âm tính"
+                      ? "bg-sky-600 text-white border-sky-600 shadow-md"
+                      : "bg-sky-50/60 text-sky-800 border-sky-200 hover:bg-sky-100"
                   }`}
                 >
                   Âm tính
                 </button>
                 <button
                   type="button"
-                  onClick={() => setKetQua('Dương tính')}
+                  onClick={() => setKetQua("Dương tính")}
                   className={`py-2.5 rounded-xl text-xs font-black uppercase border transition ${
-                    ketQua.trim().toLowerCase() === 'dương tính'
-                      ? 'bg-rose-600 text-white border-rose-600 shadow-md'
-                      : 'bg-rose-50/60 text-rose-800 border-rose-200 hover:bg-rose-100'
+                    ketQua.trim().toLowerCase() === "dương tính"
+                      ? "bg-rose-600 text-white border-rose-600 shadow-md"
+                      : "bg-rose-50/60 text-rose-800 border-rose-200 hover:bg-rose-100"
                   }`}
                 >
                   Dương tính
@@ -1512,8 +1931,13 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
               <input
                 type="text"
                 value={ketQua}
-                onChange={e => setKetQua(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleConfirm(); } }}
+                onChange={(e) => setKetQua(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleConfirm();
+                  }
+                }}
                 placeholder="Hoặc gõ trực tiếp kết quả / ghi chú..."
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800"
               />
@@ -1536,7 +1960,7 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
             className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5"
           >
             <Check className="w-4 h-4" />
-            {saving ? 'Đang cập nhật...' : 'Lưu cập nhật kết quả'}
+            {saving ? "Đang cập nhật..." : "Lưu cập nhật kết quả"}
           </button>
         </div>
       </div>
@@ -1561,24 +1985,24 @@ export function BulkReplenishModal({
   dateStr,
   computed,
   onClose,
-  onApply
+  onApply,
 }: BulkReplenishModalProps) {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [values, setValues] = useState<Record<string, number>>({});
 
   const stockTests = useMemo(
-    () => computed.tests.filter(t => isStockTestCode(t.code) && !t.noStock),
+    () => computed.tests.filter((t) => isStockTestCode(t.code) && !t.noStock),
     [computed.tests]
   );
 
   useEffect(() => {
     if (open) {
       const init: Record<string, number> = {};
-      stockTests.forEach(t => {
+      stockTests.forEach((t) => {
         init[t.code] = computed.shifts[shift]?.[t.code]?.boiHoan || 0;
       });
       setValues(init);
-      setSearch('');
+      setSearch("");
     }
   }, [open, shift, stockTests, computed.shifts]);
 
@@ -1586,8 +2010,13 @@ export function BulkReplenishModal({
 
   const handleAutoQuota = () => {
     const next: Record<string, number> = { ...values };
-    stockTests.forEach(t => {
-      const cell = computed.shifts[shift]?.[t.code] || { boiHoan: 0, suDungQC: 0, suDung: 0, tonCuoi: 0 };
+    stockTests.forEach((t) => {
+      const cell = computed.shifts[shift]?.[t.code] || {
+        boiHoan: 0,
+        suDungQC: 0,
+        suDung: 0,
+        tonCuoi: 0,
+      };
       const currentWithoutBh = cell.tonCuoi - cell.boiHoan;
       const need = Math.max(0, Number(t.quota || 0) - currentWithoutBh);
       next[t.code] = need;
@@ -1597,12 +2026,14 @@ export function BulkReplenishModal({
 
   const handleClearAll = () => {
     const next: Record<string, number> = {};
-    stockTests.forEach(t => { next[t.code] = 0; });
+    stockTests.forEach((t) => {
+      next[t.code] = 0;
+    });
     setValues(next);
   };
 
   const filtered = stockTests.filter(
-    t =>
+    (t) =>
       t.name.toLowerCase().includes(search.trim().toLowerCase()) ||
       t.code.toLowerCase().includes(search.trim().toLowerCase())
   );
@@ -1613,13 +2044,18 @@ export function BulkReplenishModal({
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
             <h3 className="text-base font-black text-slate-900 uppercase">
-              Bồi hoàn / Nhập thêm Kit — Ca {shift} ({formatDateDisplay(dateStr)})
+              Bồi hoàn / Nhập thêm Kit — Ca {shift} (
+              {formatDateDisplay(dateStr)})
             </h3>
             <p className="text-xs font-semibold text-slate-500">
-              Nhập số lượng test nhận thêm từ kho chính trong Ca {shift} (Không áp dụng cho WIDAL).
+              Nhập số lượng test nhận thêm từ kho chính trong Ca {shift} (Không
+              áp dụng cho WIDAL).
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1630,7 +2066,7 @@ export function BulkReplenishModal({
             <input
               type="text"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm nhanh tên test (dữ liệu đã gõ vẫn giữ nguyên khi lọc)..."
               className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs font-bold"
             />
@@ -1654,22 +2090,42 @@ export function BulkReplenishModal({
         </div>
 
         <div className="flex-1 overflow-y-auto border border-slate-200 rounded-2xl divide-y divide-slate-100">
-          {filtered.map(t => {
-            const cell = computed.shifts[shift]?.[t.code] || { boiHoan: 0, suDungQC: 0, suDung: 0, tonCuoi: 0 };
+          {filtered.map((t) => {
+            const cell = computed.shifts[shift]?.[t.code] || {
+              boiHoan: 0,
+              suDungQC: 0,
+              suDung: 0,
+              tonCuoi: 0,
+            };
             const baseWithoutBh = cell.tonCuoi - cell.boiHoan;
             const newBh = clampInt(values[t.code] ?? 0, 0, 99999);
             const projectedEnd = baseWithoutBh + newBh;
             return (
-              <div key={t.code} className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50">
+              <div
+                key={t.code}
+                className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50"
+              >
                 <div>
-                  <div className="text-xs font-black text-slate-800">{t.name}</div>
+                  <div className="text-xs font-black text-slate-800">
+                    {t.name}
+                  </div>
                   <div className="text-[11px] font-semibold text-slate-500">
-                    Cơ số: <span className="font-bold text-slate-700">{t.quota}</span> • Tồn trước bù:{' '}
-                    <span className={baseWithoutBh < 0 ? 'font-black text-rose-600' : 'font-bold text-slate-700'}>
+                    Cơ số:{" "}
+                    <span className="font-bold text-slate-700">{t.quota}</span>{" "}
+                    • Tồn trước bù:{" "}
+                    <span
+                      className={
+                        baseWithoutBh < 0
+                          ? "font-black text-rose-600"
+                          : "font-bold text-slate-700"
+                      }
+                    >
                       {baseWithoutBh}
-                    </span>{' '}
-                    → Tồn cuối sau bù:{' '}
-                    <span className="font-black text-sky-700">{projectedEnd}</span>
+                    </span>{" "}
+                    → Tồn cuối sau bù:{" "}
+                    <span className="font-black text-sky-700">
+                      {projectedEnd}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1678,10 +2134,10 @@ export function BulkReplenishModal({
                     type="number"
                     min={0}
                     value={values[t.code] ?? 0}
-                    onChange={e =>
-                      setValues(prev => ({
+                    onChange={(e) =>
+                      setValues((prev) => ({
                         ...prev,
-                        [t.code]: clampInt(e.target.value, 0, 99999)
+                        [t.code]: clampInt(e.target.value, 0, 99999),
                       }))
                     }
                     className="w-20 px-2.5 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50/40 text-center text-xs font-black text-emerald-800"
@@ -1737,11 +2193,13 @@ export function ClosingReviewModal({
   isAdmin,
   loading,
   onClose,
-  onConfirmCloseShift
+  onConfirmCloseShift,
 }: ClosingReviewModalProps) {
   if (!open) return null;
 
-  const stockTests = computed.tests.filter(t => isStockTestCode(t.code) && !t.noStock);
+  const stockTests = computed.tests.filter(
+    (t) => isStockTestCode(t.code) && !t.noStock
+  );
   const blockedByPending = pendingCountOfShift > 0 && !isAdmin;
 
   return (
@@ -1751,18 +2209,22 @@ export function ClosingReviewModal({
           <div className="flex items-center gap-2 text-amber-600">
             <AlertTriangle className="w-6 h-6 shrink-0" />
             <h3 className="text-lg font-black text-slate-900 uppercase">
-              KIỂM TRA LẠI TRƯỚC KHI CHỐT CA {shift} ({formatDateDisplay(dateStr)})
+              KIỂM TRA LẠI TRƯỚC KHI CHỐT CA {shift} (
+              {formatDateDisplay(dateStr)})
             </h3>
           </div>
           <p className="text-xs font-semibold text-slate-500 mt-1">
-            Sau khi chốt, số liệu Ca {shift} sẽ khóa lại (chỉ Admin sửa được) và tài khoản sẽ đăng xuất để ca sau nhận bàn giao.
+            Sau khi chốt, số liệu Ca {shift} sẽ khóa lại (chỉ Admin sửa được) và
+            tài khoản sẽ đăng xuất để ca sau nhận bàn giao.
           </p>
         </div>
 
         {pendingCountOfShift > 0 && (
           <div className="mt-3 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-between">
             <span>
-              ⚠️ Còn {pendingCountOfShift} xét nghiệm trong hàng đợi của Ca {shift} chưa đọc kết quả! Vui lòng hoàn tất đọc kết quả ở Tab 1 trước khi chốt ca.
+              ⚠️ Còn {pendingCountOfShift} xét nghiệm trong hàng đợi của Ca{" "}
+              {shift} chưa đọc kết quả! Vui lòng hoàn tất đọc kết quả ở Tab 1
+              trước khi chốt ca.
             </span>
           </div>
         )}
@@ -1780,33 +2242,38 @@ export function ClosingReviewModal({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {stockTests.map(t => {
+              {stockTests.map((t) => {
                 const prevEnd =
                   shift === 1
                     ? computed.tonDau[t.code] ?? 0
-                    : computed.shifts[(shift - 1) as ShiftNumber]?.[t.code]?.tonCuoi ?? 0;
+                    : computed.shifts[(shift - 1) as ShiftNumber]?.[t.code]
+                        ?.tonCuoi ?? 0;
                 const cell = computed.shifts[shift]?.[t.code] || {
                   boiHoan: 0,
                   suDungQC: 0,
                   suDung: 0,
-                  tonCuoi: prevEnd
+                  tonCuoi: prevEnd,
                 };
                 return (
                   <tr key={t.code} className="hover:bg-slate-50">
-                    <td className="py-2 px-3 font-black text-slate-800">{t.name}</td>
-                    <td className="py-2 px-3 text-center font-bold text-slate-700">{prevEnd}</td>
+                    <td className="py-2 px-3 font-black text-slate-800">
+                      {t.name}
+                    </td>
+                    <td className="py-2 px-3 text-center font-bold text-slate-700">
+                      {prevEnd}
+                    </td>
                     <td className="py-2 px-3 text-center font-bold text-emerald-700">
-                      {cell.boiHoan > 0 ? cell.boiHoan : '–'}
+                      {cell.boiHoan > 0 ? cell.boiHoan : "–"}
                     </td>
                     <td className="py-2 px-3 text-center font-bold text-purple-700">
-                      {cell.suDungQC > 0 ? cell.suDungQC : '–'}
+                      {cell.suDungQC > 0 ? cell.suDungQC : "–"}
                     </td>
                     <td className="py-2 px-3 text-center font-black text-rose-600">
-                      {cell.suDung > 0 ? cell.suDung : '–'}
+                      {cell.suDung > 0 ? cell.suDung : "–"}
                     </td>
                     <td
                       className={`py-2 px-3 text-center font-black ${
-                        cell.tonCuoi < 0 ? 'text-rose-600' : 'text-sky-700'
+                        cell.tonCuoi < 0 ? "text-rose-600" : "text-sky-700"
                       }`}
                     >
                       {cell.tonCuoi}
@@ -1832,7 +2299,9 @@ export function ClosingReviewModal({
             onClick={onConfirmCloseShift}
             className="px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-600/25 transition"
           >
-            {loading ? 'Đang khóa sổ...' : `Xác nhận chốt Ca ${shift} & đăng xuất`}
+            {loading
+              ? "Đang khóa sổ..."
+              : `Xác nhận chốt Ca ${shift} & đăng xuất`}
           </button>
         </div>
       </div>
@@ -1840,34 +2309,49 @@ export function ClosingReviewModal({
   );
 }
 
-// === ĐIỂM NỐI PART 2 -> PART 3 (Dán Part 3 nối tiếp ngay bên dưới dòng này) ===
-
 /* ==================== BIỂU MẪU IN SỔ BM.04 (CHUẨN A4 NGANG) ==================== */
 
 export function renderKetQuaBM04(r: QueueItem | null) {
-  if (!r || !r.ketQua) return <div className="font-bold uppercase min-h-[16px]" />;
-  const code = String(r.maTest || '').trim().toUpperCase();
+  if (!r || !r.ketQua)
+    return <div className="font-bold uppercase min-h-[16px]" />;
+  const code = String(r.maTest || "")
+    .trim()
+    .toUpperCase();
   const subs = getSubTests(code);
 
   if (subs) {
     const { map: parsed, extraNote } = parseMultiResultWithNote(code, r.ketQua);
-    const hasStructured = subs.some(k => parsed[k] !== '');
+    const hasStructured = subs.some((k) => parsed[k] !== "");
 
     if (hasStructured) {
       // Quy tắc cho WIDAL (8 chân): Hiển thị lưới 4 cột x 2 dòng theo từng cặp O (dòng 1) và H (dòng 2)
       // Dòng 1: Typhi O | AO | BO | CO
       // Dòng 2: Typhi H | AH | BH | CH
-      if (code === 'WIDAL') {
-        const widalOrder = ['Typhi O', 'AO', 'BO', 'CO', 'Typhi H', 'AH', 'BH', 'CH'];
+      if (code === "WIDAL") {
+        const widalOrder = [
+          "Typhi O",
+          "AO",
+          "BO",
+          "CO",
+          "Typhi H",
+          "AH",
+          "BH",
+          "CH",
+        ];
         return (
           <div className="py-0.5 px-0.5 leading-none">
             <div className="grid grid-cols-4 gap-x-1 gap-y-0.5 text-[7.5px] text-left">
-              {widalOrder.map(k => {
+              {widalOrder.map((k) => {
                 const val = parsed[k];
-                const isPos = val === 'Dương';
-                const shortVal = isPos ? 'D' : val === 'Âm' ? 'Â' : '-';
+                const isPos = val === "Dương";
+                const shortVal = isPos ? "D" : val === "Âm" ? "Â" : "-";
                 return (
-                  <span key={k} className={`whitespace-nowrap ${isPos ? 'font-black' : 'font-semibold'}`}>
+                  <span
+                    key={k}
+                    className={`whitespace-nowrap ${
+                      isPos ? "font-black" : "font-semibold"
+                    }`}
+                  >
                     {k} ({shortVal})
                   </span>
                 );
@@ -1888,14 +2372,21 @@ export function renderKetQuaBM04(r: QueueItem | null) {
           <div className="py-0.5 px-0.5 leading-none">
             <div className="flex items-center justify-center gap-1 text-[8.5px]">
               {subs.map((k, idx) => {
-                const label = k === 'P. falciparum' ? 'P.falci' : k === 'P. vivax' ? 'P.vivax' : k;
+                const label =
+                  k === "P. falciparum"
+                    ? "P.falci"
+                    : k === "P. vivax"
+                    ? "P.vivax"
+                    : k;
                 const val = parsed[k];
-                const isPos = val === 'Dương';
-                const shortVal = isPos ? 'D' : val === 'Âm' ? 'Â' : '-';
+                const isPos = val === "Dương";
+                const shortVal = isPos ? "D" : val === "Âm" ? "Â" : "-";
                 return (
                   <React.Fragment key={k}>
-                    {idx > 0 && <span className="text-black font-normal">|</span>}
-                    <span className={isPos ? 'font-black' : 'font-semibold'}>
+                    {idx > 0 && (
+                      <span className="text-black font-normal">|</span>
+                    )}
+                    <span className={isPos ? "font-black" : "font-semibold"}>
                       {label} ({shortVal})
                     </span>
                   </React.Fragment>
@@ -1915,13 +2406,16 @@ export function renderKetQuaBM04(r: QueueItem | null) {
       return (
         <div className="py-0.5 px-0.5 leading-none">
           <div className="grid grid-cols-3 gap-x-1 gap-y-0.5 text-[8px] text-left">
-            {subs.map(k => {
-              const label = k === 'Codein' ? 'COD' : k === 'Heroin' ? 'HER' : k;
+            {subs.map((k) => {
+              const label = k === "Codein" ? "COD" : k === "Heroin" ? "HER" : k;
               const val = parsed[k];
-              const isPos = val === 'Dương';
-              const shortVal = isPos ? 'D' : val === 'Âm' ? 'Â' : '-';
+              const isPos = val === "Dương";
+              const shortVal = isPos ? "D" : val === "Âm" ? "Â" : "-";
               return (
-                <span key={k} className={isPos ? 'font-black' : 'font-semibold'}>
+                <span
+                  key={k}
+                  className={isPos ? "font-black" : "font-semibold"}
+                >
                   {label} ({shortVal})
                 </span>
               );
@@ -1937,7 +2431,11 @@ export function renderKetQuaBM04(r: QueueItem | null) {
     }
   }
 
-  return <div className="font-bold uppercase min-h-[16px] truncate px-0.5">{r.ketQua}</div>;
+  return (
+    <div className="font-bold uppercase min-h-[16px] truncate px-0.5">
+      {r.ketQua}
+    </div>
+  );
 }
 
 interface PrintBm04Props {
@@ -1947,20 +2445,21 @@ interface PrintBm04Props {
 }
 
 export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
-  const [filterTest, setFilterTest] = useState<string>('ALL');
-  const [filterShift, setFilterShift] = useState<string>('ALL');
+  const [filterTest, setFilterTest] = useState<string>("ALL");
+  const [filterShift, setFilterShift] = useState<string>("ALL");
 
   const dayLogs = useMemo(() => {
-    const list = logs.filter(l => {
-      if (String(l.ngayBC || '').trim() !== selectedDate) return false;
-      if (filterTest !== 'ALL' && l.maTest !== filterTest) return false;
-      if (filterShift !== 'ALL' && Number(l.caTruc) !== Number(filterShift)) return false;
+    const list = logs.filter((l) => {
+      if (String(l.ngayBC || "").trim() !== selectedDate) return false;
+      if (filterTest !== "ALL" && l.maTest !== filterTest) return false;
+      if (filterShift !== "ALL" && Number(l.caTruc) !== Number(filterShift))
+        return false;
       return true;
     });
     return [...list].sort((a, b) => {
       const caDiff = (Number(a.caTruc) || 1) - (Number(b.caTruc) || 1);
       if (caDiff !== 0) return caDiff;
-      return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
+      return String(a.timestamp || "").localeCompare(String(b.timestamp || ""));
     });
   }, [logs, selectedDate, filterTest, filterShift]);
 
@@ -1971,7 +2470,10 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
   const pages = useMemo(() => {
     const result = [];
     for (let i = 0; i < totalPages; i++) {
-      const chunk: (QueueItem | null)[] = dayLogs.slice(i * ROWS_PER_PAGE, (i + 1) * ROWS_PER_PAGE);
+      const chunk: (QueueItem | null)[] = dayLogs.slice(
+        i * ROWS_PER_PAGE,
+        (i + 1) * ROWS_PER_PAGE
+      );
       while (chunk.length < ROWS_PER_PAGE) {
         chunk.push(null); // Bơm dòng trống cho đủ 18 dòng
       }
@@ -1985,15 +2487,18 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
       <div className="no-print bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <span className="text-xs font-black uppercase text-slate-500 block">Biểu mẫu in BM.04</span>
+            <span className="text-xs font-black uppercase text-slate-500 block">
+              Biểu mẫu in BM.04
+            </span>
             <span className="text-sm font-black text-slate-900">
-              Ngày báo cáo: {formatDateDisplay(selectedDate)} ({dayLogs.length} kết quả)
+              Ngày báo cáo: {formatDateDisplay(selectedDate)} ({dayLogs.length}{" "}
+              kết quả)
             </span>
           </div>
 
           <select
             value={filterShift}
-            onChange={e => setFilterShift(e.target.value)}
+            onChange={(e) => setFilterShift(e.target.value)}
             className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-slate-50"
           >
             <option value="ALL">Tất cả các Ca (Ca 1 → Ca 4)</option>
@@ -2005,11 +2510,11 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
 
           <select
             value={filterTest}
-            onChange={e => setFilterTest(e.target.value)}
+            onChange={(e) => setFilterTest(e.target.value)}
             className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-slate-50"
           >
             <option value="ALL">Tất cả loại Xét nghiệm</option>
-            {testsConfig.map(t => (
+            {testsConfig.map((t) => (
               <option key={t.code} value={t.code}>
                 {t.name} ({t.code})
               </option>
@@ -2028,33 +2533,74 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
 
       {/* LẶP QUA TỪNG TRANG VÀ IN RA (Áp dụng pageBreakAfter để ngắt trang A4) */}
       {pages.map((pageRows, pageIndex) => (
-        <div 
-          key={pageIndex} 
+        <div
+          key={pageIndex}
           className="print-sheet bg-white px-2 py-4 text-black"
-          style={{ pageBreakAfter: pageIndex < totalPages - 1 ? 'always' : 'auto' }}
+          style={{
+            pageBreakAfter: pageIndex < totalPages - 1 ? "always" : "auto",
+          }}
         >
           <div className="flex items-end justify-between mb-4 border-b-2 border-black pb-2">
             <div className="text-sm font-bold">
               Sổ lưu kết quả xét nghiệm thực hiện thủ công
             </div>
-            <div className="text-sm font-bold">
-              BM.04.XN.QTQL.37
-            </div>
+            <div className="text-sm font-bold">BM.04.XN.QTQL.37</div>
           </div>
 
           <table className="w-full border-collapse border border-black text-[10px] text-center">
             <thead>
               <tr className="bg-slate-100 font-bold">
-                <th rowSpan={2} className="border border-black px-1 py-1 w-8">STT</th>
-                <th rowSpan={2} className="border border-black px-1.5 py-1 w-28">TÊN XÉT NGHIỆM</th>
-                <th rowSpan={2} className="border border-black px-2 py-1 text-left">HỌ VÀ TÊN BỆNH NHÂN</th>
-                <th colSpan={2} className="border border-black px-1 py-1">NĂM SINH</th>
-                <th rowSpan={2} className="border border-black px-1.5 py-1 w-24">BARCODE</th>
-                <th rowSpan={2} className="border border-black px-1 py-1 w-20">ĐỌC CHỨNG</th>
-                <th rowSpan={2} className="border border-black px-1.5 py-1 w-48">KẾT QUẢ</th>
-                <th rowSpan={2} className="border border-black px-1.5 py-1 w-28">THỜI GIAN ĐỌC KQ</th>
-                <th rowSpan={2} className="border border-black px-1.5 py-1 w-32">NGƯỜI THỰC HIỆN</th>
-                <th rowSpan={2} className="border border-black px-1.5 py-1 w-32">NGƯỜI KIỂM TRA</th>
+                <th rowSpan={2} className="border border-black px-1 py-1 w-8">
+                  STT
+                </th>
+                <th
+                  rowSpan={2}
+                  className="border border-black px-1.5 py-1 w-28"
+                >
+                  TÊN XÉT NGHIỆM
+                </th>
+                <th
+                  rowSpan={2}
+                  className="border border-black px-2 py-1 text-left"
+                >
+                  HỌ VÀ TÊN BỆNH NHÂN
+                </th>
+                <th colSpan={2} className="border border-black px-1 py-1">
+                  NĂM SINH
+                </th>
+                <th
+                  rowSpan={2}
+                  className="border border-black px-1.5 py-1 w-24"
+                >
+                  BARCODE
+                </th>
+                <th rowSpan={2} className="border border-black px-1 py-1 w-20">
+                  ĐỌC CHỨNG
+                </th>
+                <th
+                  rowSpan={2}
+                  className="border border-black px-1.5 py-1 w-48"
+                >
+                  KẾT QUẢ
+                </th>
+                <th
+                  rowSpan={2}
+                  className="border border-black px-1.5 py-1 w-28"
+                >
+                  THỜI GIAN ĐỌC KQ
+                </th>
+                <th
+                  rowSpan={2}
+                  className="border border-black px-1.5 py-1 w-32"
+                >
+                  NGƯỜI THỰC HIỆN
+                </th>
+                <th
+                  rowSpan={2}
+                  className="border border-black px-1.5 py-1 w-32"
+                >
+                  NGƯỜI KIỂM TRA
+                </th>
               </tr>
               <tr className="bg-slate-100 font-bold">
                 <th className="border border-black px-1 py-0.5 w-12">Nam</th>
@@ -2063,29 +2609,42 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
             </thead>
             <tbody>
               {pageRows.map((r, idx) => (
-                <tr key={r ? r.id : `empty_${pageIndex}_${idx}`} className="h-6">
+                <tr
+                  key={r ? r.id : `empty_${pageIndex}_${idx}`}
+                  className="h-6"
+                >
                   <td className="border border-black px-1 py-0.5 font-semibold">
-                    {r ? pageIndex * ROWS_PER_PAGE + idx + 1 : ''}
+                    {r ? pageIndex * ROWS_PER_PAGE + idx + 1 : ""}
                   </td>
                   <td className="border border-black px-1 py-0.5 font-bold uppercase truncate">
-                    {r ? r.tenXetNghiem : ''}
+                    {r ? r.tenXetNghiem : ""}
                   </td>
                   <td className="border border-black px-2 py-0.5 text-left font-bold uppercase">
-                    {r ? r.hoTenBN : ''}
+                    {r ? r.hoTenBN : ""}
                   </td>
-                  <td className="border border-black px-1 py-0.5 font-semibold">{r ? r.namSinhNam : ''}</td>
-                  <td className="border border-black px-1 py-0.5 font-semibold">{r ? r.namSinhNu : ''}</td>
-                  <td className="border border-black px-1 py-0.5 font-bold">{r ? r.barcode : ''}</td>
-                  <td className="border border-black px-1 py-0.5 font-semibold">{r ? r.docChung : ''}</td>
-                  <td className="border border-black px-1 py-0.5">{renderKetQuaBM04(r)}</td>
+                  <td className="border border-black px-1 py-0.5 font-semibold">
+                    {r ? r.namSinhNam : ""}
+                  </td>
+                  <td className="border border-black px-1 py-0.5 font-semibold">
+                    {r ? r.namSinhNu : ""}
+                  </td>
+                  <td className="border border-black px-1 py-0.5 font-bold">
+                    {r ? r.barcode : ""}
+                  </td>
+                  <td className="border border-black px-1 py-0.5 font-semibold">
+                    {r ? r.docChung : ""}
+                  </td>
+                  <td className="border border-black px-1 py-0.5">
+                    {renderKetQuaBM04(r)}
+                  </td>
                   <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold">
-                    {r ? r.thoiGianDocKQ : ''}
+                    {r ? r.thoiGianDocKQ : ""}
                   </td>
                   <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
-                    {r ? r.nguoiThucHien : ''}
+                    {r ? r.nguoiThucHien : ""}
                   </td>
                   <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
-                    {r ? r.nguoiKiemTra : ''}
+                    {r ? r.nguoiKiemTra : ""}
                   </td>
                 </tr>
               ))}
@@ -2095,7 +2654,9 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
           <div className="flex items-center justify-between mt-4 border-t border-black pt-2 text-[11px] italic">
             <div>Ngày ban hành: 01/07/2025</div>
             <div>Lần ban hành: 02</div>
-            <div className="font-semibold text-[12px]">Trang {pageIndex + 1}/{totalPages}</div>
+            <div className="font-semibold text-[12px]">
+              Trang {pageIndex + 1}/{totalPages}
+            </div>
           </div>
         </div>
       ))}
@@ -2112,22 +2673,24 @@ interface PrintBm13Props {
 
 export function PrintBm13({ selectedDate, computed }: PrintBm13Props) {
   const stockTests = useMemo(
-    () => computed.tests.filter(t => isStockTestCode(t.code) && !t.noStock),
+    () => computed.tests.filter((t) => isStockTestCode(t.code) && !t.noStock),
     [computed.tests]
   );
 
   const shiftLabels: Record<ShiftNumber, string> = {
-    1: 'Lần 1: 7h00 - 11h00',
-    2: 'Lần 2: 11h00 - 13h30',
-    3: 'Lần 3: 13h30 - 17h00',
-    4: 'Lần 4: 17h00 - 7h00'
+    1: "Lần 1: 7h00 - 11h00",
+    2: "Lần 2: 11h00 - 13h30",
+    3: "Lần 3: 13h30 - 17h00",
+    4: "Lần 4: 17h00 - 7h00",
   };
 
   return (
     <div className="space-y-4">
       <div className="no-print bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex items-center justify-between">
         <div>
-          <span className="text-xs font-black uppercase text-slate-500 block">Biểu mẫu in BM.13</span>
+          <span className="text-xs font-black uppercase text-slate-500 block">
+            Biểu mẫu in BM.13
+          </span>
           <span className="text-sm font-black text-slate-900">
             Sổ Bàn Giao Test Nhanh Ngày: {formatDateDisplay(selectedDate)}
           </span>
@@ -2141,39 +2704,54 @@ export function PrintBm13({ selectedDate, computed }: PrintBm13Props) {
         </button>
       </div>
 
-      <div className="print-sheet bg-white px-2 py-4 text-black" style={{ pageBreakInside: 'avoid' }}>
+      <div
+        className="print-sheet bg-white px-2 py-4 text-black"
+        style={{ pageBreakInside: "avoid" }}
+      >
         {/* HEADER BM.13 */}
         <div className="flex items-end justify-between mb-2">
           <div className="text-sm font-bold">
             Biên bản bàn giao hóa chất hằng ngày
           </div>
-          <div className="text-sm font-bold">
-            BM.13.XN.QTQL.23
-          </div>
+          <div className="text-sm font-bold">BM.13.XN.QTQL.23</div>
         </div>
 
         <table className="w-full border-collapse border border-black text-[9px] text-center">
           <thead>
             <tr>
-              <th colSpan={3 + stockTests.length + 3} className="border border-black py-2 text-base font-bold uppercase">
+              <th
+                colSpan={3 + stockTests.length + 3}
+                className="border border-black py-2 text-base font-bold uppercase"
+              >
                 BIÊN BẢN BÀN GIAO HÓA CHẤT HẰNG NGÀY
               </th>
             </tr>
             <tr>
-              <th colSpan={3 + stockTests.length} className="border border-black py-1 text-[13px] font-bold uppercase text-center">
+              <th
+                colSpan={3 + stockTests.length}
+                className="border border-black py-1 text-[13px] font-bold uppercase text-center"
+              >
                 PHÒNG MIỄN DỊCH
               </th>
-              <th colSpan={3} className="border border-black py-1 text-[11px] font-bold text-left px-2">
+              <th
+                colSpan={3}
+                className="border border-black py-1 text-[11px] font-bold text-left px-2"
+              >
                 NGÀY: {formatDateDisplay(selectedDate)}
               </th>
             </tr>
 
             <tr className="bg-slate-100 font-bold">
-              <th className="border border-black px-1 py-1 w-28 text-left">DANH MỤC</th>
+              <th className="border border-black px-1 py-1 w-28 text-left">
+                DANH MỤC
+              </th>
               <th className="border border-black px-1 py-1 w-10">ĐVT</th>
               <th className="border border-black px-1 py-1 w-10">CƠ SỐ</th>
-              {stockTests.map(t => (
-                <th key={t.code} className="border border-black px-1 py-1 min-w-[38px]">
+              {stockTests.map((t) => (
+                <th
+                  key={t.code}
+                  className="border border-black px-1 py-1 min-w-[38px]"
+                >
                   <div className="font-black leading-tight">{t.name}</div>
                 </th>
               ))}
@@ -2184,95 +2762,161 @@ export function PrintBm13({ selectedDate, computed }: PrintBm13Props) {
           </thead>
           <tbody>
             <tr className="bg-slate-50 font-bold">
-              <td className="border border-black px-1.5 py-1 text-left">Đơn vị tính</td>
+              <td className="border border-black px-1.5 py-1 text-left">
+                Đơn vị tính
+              </td>
               <td className="border border-black px-1 py-1">TEST</td>
               <td className="border border-black px-1 py-1">-</td>
-              {stockTests.map(t => (
-                <td key={t.code} className="border border-black px-1 py-1">{t.unit || 'TEST'}</td>
+              {stockTests.map((t) => (
+                <td key={t.code} className="border border-black px-1 py-1">
+                  {t.unit || "TEST"}
+                </td>
               ))}
               <td colSpan={3} className="border border-black px-1 py-1" />
             </tr>
             <tr className="bg-slate-50 font-bold">
-              <td className="border border-black px-1.5 py-1 text-left">Cơ số quy định</td>
+              <td className="border border-black px-1.5 py-1 text-left">
+                Cơ số quy định
+              </td>
               <td className="border border-black px-1 py-1">TEST</td>
               <td className="border border-black px-1 py-1">Chuẩn</td>
-              {stockTests.map(t => (
-                <td key={t.code} className="border border-black px-1 py-1 font-black">{t.quota}</td>
+              {stockTests.map((t) => (
+                <td
+                  key={t.code}
+                  className="border border-black px-1 py-1 font-black"
+                >
+                  {t.quota}
+                </td>
               ))}
               <td colSpan={3} className="border border-black px-1 py-1" />
             </tr>
             <tr className="bg-sky-50/70 font-black">
-              <td colSpan={3} className="border border-black px-1.5 py-1 text-left uppercase">
+              <td
+                colSpan={3}
+                className="border border-black px-1.5 py-1 text-left uppercase"
+              >
                 TỒN ĐẦU NGÀY ({formatDateDisplay(selectedDate)})
               </td>
-              {stockTests.map(t => (
-                <td key={t.code} className="border border-black px-1 py-1 text-[10px]">
+              {stockTests.map((t) => (
+                <td
+                  key={t.code}
+                  className="border border-black px-1 py-1 text-[10px]"
+                >
                   {computed.tonDau[t.code] ?? 0}
                 </td>
               ))}
               <td colSpan={3} className="border border-black px-1 py-1" />
             </tr>
 
-            {([1, 2, 3, 4] as ShiftNumber[]).map(ca => {
+            {([1, 2, 3, 4] as ShiftNumber[]).map((ca) => {
               const m = computed.meta[ca];
               return (
                 <React.Fragment key={ca}>
                   <tr className="bg-slate-100/80 font-bold">
-                    <td colSpan={3} className="border border-black px-1.5 py-0.5 text-left uppercase">
+                    <td
+                      colSpan={3}
+                      className="border border-black px-1.5 py-0.5 text-left uppercase"
+                    >
                       {shiftLabels[ca]}
                     </td>
-                    {stockTests.map(t => (
-                      <td key={t.code} className="border border-black px-1 py-0.5 text-slate-400">-</td>
+                    {stockTests.map((t) => (
+                      <td
+                        key={t.code}
+                        className="border border-black px-1 py-0.5 text-slate-400"
+                      >
+                        -
+                      </td>
                     ))}
-                    <td rowSpan={5} className="border border-black px-1 py-1 font-semibold text-[8.5px]">
+                    <td
+                      rowSpan={5}
+                      className="border border-black px-1 py-1 font-semibold text-[8.5px]"
+                    >
                       {m.gioGiao}
                     </td>
-                    <td rowSpan={5} className="border border-black px-1 py-1 font-bold text-[9px]">
+                    <td
+                      rowSpan={5}
+                      className="border border-black px-1 py-1 font-bold text-[9px]"
+                    >
                       {m.nguoiGiao}
                     </td>
-                    <td rowSpan={5} className="border border-black px-1 py-1 font-bold text-[9px]">
+                    <td
+                      rowSpan={5}
+                      className="border border-black px-1 py-1 font-bold text-[9px]"
+                    >
                       {m.nguoiNhan}
                     </td>
                   </tr>
                   <tr>
-                    <td colSpan={3} className="border border-black px-2 py-0.5 text-left">+ Bồi hoàn</td>
-                    {stockTests.map(t => {
+                    <td
+                      colSpan={3}
+                      className="border border-black px-2 py-0.5 text-left"
+                    >
+                      + Bồi hoàn
+                    </td>
+                    {stockTests.map((t) => {
                       const v = computed.shifts[ca]?.[t.code]?.boiHoan || 0;
                       return (
-                        <td key={t.code} className="border border-black px-1 py-0.5 font-semibold">
-                          {v > 0 ? v : ''}
+                        <td
+                          key={t.code}
+                          className="border border-black px-1 py-0.5 font-semibold"
+                        >
+                          {v > 0 ? v : ""}
                         </td>
                       );
                     })}
                   </tr>
                   <tr>
-                    <td colSpan={3} className="border border-black px-2 py-0.5 text-left">- Sử dụng QC / Cali</td>
-                    {stockTests.map(t => {
+                    <td
+                      colSpan={3}
+                      className="border border-black px-2 py-0.5 text-left"
+                    >
+                      - Sử dụng QC / Cali
+                    </td>
+                    {stockTests.map((t) => {
                       const v = computed.shifts[ca]?.[t.code]?.suDungQC || 0;
                       return (
-                        <td key={t.code} className="border border-black px-1 py-0.5 font-semibold">
-                          {v > 0 ? v : ''}
+                        <td
+                          key={t.code}
+                          className="border border-black px-1 py-0.5 font-semibold"
+                        >
+                          {v > 0 ? v : ""}
                         </td>
                       );
                     })}
                   </tr>
                   <tr>
-                    <td colSpan={3} className="border border-black px-2 py-0.5 text-left">- Sử dụng Bệnh nhân</td>
-                    {stockTests.map(t => {
+                    <td
+                      colSpan={3}
+                      className="border border-black px-2 py-0.5 text-left"
+                    >
+                      - Sử dụng Bệnh nhân
+                    </td>
+                    {stockTests.map((t) => {
                       const v = computed.shifts[ca]?.[t.code]?.suDung || 0;
                       return (
-                        <td key={t.code} className="border border-black px-1 py-0.5 font-bold">
-                          {v > 0 ? v : ''}
+                        <td
+                          key={t.code}
+                          className="border border-black px-1 py-0.5 font-bold"
+                        >
+                          {v > 0 ? v : ""}
                         </td>
                       );
                     })}
                   </tr>
                   <tr className="font-black bg-slate-50">
-                    <td colSpan={3} className="border border-black px-2 py-0.5 text-left">= Tồn cuối Ca {ca}</td>
-                    {stockTests.map(t => {
+                    <td
+                      colSpan={3}
+                      className="border border-black px-2 py-0.5 text-left"
+                    >
+                      = Tồn cuối Ca {ca}
+                    </td>
+                    {stockTests.map((t) => {
                       const v = computed.shifts[ca]?.[t.code]?.tonCuoi ?? 0;
                       return (
-                        <td key={t.code} className="border border-black px-1 py-0.5">
+                        <td
+                          key={t.code}
+                          className="border border-black px-1 py-0.5"
+                        >
                           {v}
                         </td>
                       );
@@ -2285,13 +2929,16 @@ export function PrintBm13({ selectedDate, computed }: PrintBm13Props) {
         </table>
 
         <div className="mt-2 text-xs font-bold">
-          Ghi chú trong ngày: <span className="font-normal">{computed.ghiChu || 'Không có ghi chú phát sinh.'}</span>
+          Ghi chú trong ngày:{" "}
+          <span className="font-normal">
+            {computed.ghiChu || "Không có ghi chú phát sinh."}
+          </span>
         </div>
 
         {/* FOOTER BM.13 */}
         <div className="flex items-center justify-between mt-4 border-t border-black pt-2 text-[11px] italic">
-          <div>Ngày ban hành: 01/03/2023</div>
-          <div>Lần ban hành: 01</div>
+          <div>Ngày ban hành: 18/06/2025</div>
+          <div>Lần ban hành: 03</div>
           <div className="font-semibold text-[12px]">Trang 1/1</div>
         </div>
       </div>
@@ -2311,7 +2958,7 @@ interface AdminPanelProps {
   onUpdateTestsConfig: (nextTests: TestConfig[]) => void;
   onForceUnlockSession: () => Promise<void>;
   onApiUrlChanged: (nextUrl: string) => void;
-  notify: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  notify: (msg: string, type?: "success" | "error" | "info") => void;
 }
 
 export function AdminPanel({
@@ -2324,16 +2971,16 @@ export function AdminPanel({
   onUpdateTestsConfig,
   onForceUnlockSession,
   onApiUrlChanged,
-  notify
+  notify,
 }: AdminPanelProps) {
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [sheets, setSheets] = useState<string[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
-  const [newId, setNewId] = useState('');
-  const [newName, setNewName] = useState('');
-  const [newRole, setNewRole] = useState<Role>('User');
-  const [newPw, setNewPw] = useState('');
+  const [newId, setNewId] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newRole, setNewRole] = useState<Role>("User");
+  const [newPw, setNewPw] = useState("");
 
   const [draftTests, setDraftTests] = useState<TestConfig[]>(testsConfig);
   const [savingTests, setSavingTests] = useState(false);
@@ -2346,9 +2993,9 @@ export function AdminPanel({
 
   const loadAdminData = useCallback(async () => {
     setLoadingUsers(true);
-    const res = await rpcCall(apiUrl, 'adminListUsers', {}, token);
+    const res = await rpcCall(apiUrl, "adminListUsers", {}, token);
     setLoadingUsers(false);
-    if (res.net && res.body.status === 'success') {
+    if (res.net && res.body.status === "success") {
       setUsers(Array.isArray(res.body.users) ? res.body.users : []);
       setSheets(Array.isArray(res.body.sheets) ? res.body.sheets : []);
     }
@@ -2361,80 +3008,108 @@ export function AdminPanel({
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newId.trim() || !newName.trim()) {
-      notify('Vui lòng nhập đủ ID và Họ tên nhân viên.', 'error');
+      notify("Vui lòng nhập đủ ID và Họ tên nhân viên.", "error");
       return;
     }
     const res = await rpcCall(
       apiUrl,
-      'adminUpsertUser',
-      { id: newId.trim(), name: newName.trim(), role: newRole, password: newPw.trim() },
+      "adminUpsertUser",
+      {
+        id: newId.trim(),
+        name: newName.trim(),
+        role: newRole,
+        password: newPw.trim(),
+      },
       token
     );
-    if (!res.net || res.body.status !== 'success') {
-      notify(res.body.message || 'Không thể lưu tài khoản.', 'error');
+    if (!res.net || res.body.status !== "success") {
+      notify(res.body.message || "Không thể lưu tài khoản.", "error");
       return;
     }
     setUsers(res.body.users || []);
-    setNewId('');
-    setNewName('');
-    setNewPw('');
-    notify('Đã lưu thông tin nhân viên thành công.', 'success');
+    setNewId("");
+    setNewName("");
+    setNewPw("");
+    notify("Đã lưu thông tin nhân viên thành công.", "success");
   };
 
   const handleResetPw = async (u: UserInfo) => {
-    if (!window.confirm(`Đặt lại mật khẩu mặc định cho [${u.name}] (${u.id})?`)) return;
-    const res = await rpcCall(apiUrl, 'adminResetPassword', { userId: u.id }, token);
-    if (!res.net || res.body.status !== 'success') {
-      notify(res.body.message || 'Lỗi đặt lại mật khẩu.', 'error');
+    if (!window.confirm(`Đặt lại mật khẩu mặc định cho [${u.name}] (${u.id})?`))
+      return;
+    const res = await rpcCall(
+      apiUrl,
+      "adminResetPassword",
+      { userId: u.id },
+      token
+    );
+    if (!res.net || res.body.status !== "success") {
+      notify(res.body.message || "Lỗi đặt lại mật khẩu.", "error");
       return;
     }
-    notify(res.body.message || 'Đã đặt lại mật khẩu mặc định.', 'success');
+    notify(res.body.message || "Đã đặt lại mật khẩu mặc định.", "success");
     loadAdminData();
   };
 
   const handleDeleteUser = async (u: UserInfo) => {
-    if (!window.confirm(`Xóa vĩnh viễn tài khoản [${u.name}] (${u.id})?`)) return;
-    const res = await rpcCall(apiUrl, 'adminDeleteUser', { userId: u.id }, token);
-    if (!res.net || res.body.status !== 'success') {
-      notify(res.body.message || 'Không thể xóa tài khoản.', 'error');
+    if (!window.confirm(`Xóa vĩnh viễn tài khoản [${u.name}] (${u.id})?`))
+      return;
+    const res = await rpcCall(
+      apiUrl,
+      "adminDeleteUser",
+      { userId: u.id },
+      token
+    );
+    if (!res.net || res.body.status !== "success") {
+      notify(res.body.message || "Không thể xóa tài khoản.", "error");
       return;
     }
     setUsers(res.body.users || []);
-    notify(`Đã xóa tài khoản ${u.name}.`, 'info');
+    notify(`Đã xóa tài khoản ${u.name}.`, "info");
   };
 
   const handleSaveCatalog = async () => {
     setSavingTests(true);
-    const res = await rpcCall(apiUrl, 'updateTestsConfig', { tests: draftTests }, token);
+    const res = await rpcCall(
+      apiUrl,
+      "updateTestsConfig",
+      { tests: draftTests },
+      token
+    );
     setSavingTests(false);
-    if (!res.net || res.body.status !== 'success') {
-      notify(res.body.message || 'Không thể lưu danh mục xét nghiệm.', 'error');
+    if (!res.net || res.body.status !== "success") {
+      notify(res.body.message || "Không thể lưu danh mục xét nghiệm.", "error");
       return;
     }
     onUpdateTestsConfig(res.body.testsConfig || draftTests);
-    notify('Đã cập nhật danh mục xét nghiệm & cơ số thành công!', 'success');
+    notify("Đã cập nhật danh mục xét nghiệm & cơ số thành công!", "success");
   };
 
   const handleCheckSheets = async () => {
-    const res = await rpcCall(apiUrl, 'adminCleanupSheets', {}, token);
-    if (!res.net || res.body.status !== 'success') {
-      notify(res.body.message || 'Không thể kiểm tra danh sách Sheet.', 'error');
+    const res = await rpcCall(apiUrl, "adminCleanupSheets", {}, token);
+    if (!res.net || res.body.status !== "success") {
+      notify(
+        res.body.message || "Không thể kiểm tra danh sách Sheet.",
+        "error"
+      );
       return;
     }
     setSheets(res.body.sheets || []);
-    notify(res.body.message || 'Đã kiểm tra cấu trúc Sheet an toàn.', 'info');
+    notify(res.body.message || "Đã kiểm tra cấu trúc Sheet an toàn.", "info");
   };
 
   const handleSwitchEndpoint = async () => {
     if (outboxCount > 0) {
-      notify(`Còn ${outboxCount} thao tác trong hàng đợi chưa đồng bộ. Vui lòng đồng bộ xong trước khi đổi URL API!`, 'error');
+      notify(
+        `Còn ${outboxCount} thao tác trong hàng đợi chưa đồng bộ. Vui lòng đồng bộ xong trước khi đổi URL API!`,
+        "error"
+      );
       return;
     }
     setVerifyingUrl(true);
     const check = await testApiEndpoint(urlInput);
     setVerifyingUrl(false);
     if (!check.ok) {
-      notify(check.message, 'error');
+      notify(check.message, "error");
       return;
     }
     onApiUrlChanged(urlInput.trim());
@@ -2447,7 +3122,8 @@ export function AdminPanel({
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2">
-              <Lock className="w-4 h-4 text-amber-600" /> Trạng thái Phiên làm việc (Session Lock)
+              <Lock className="w-4 h-4 text-amber-600" /> Trạng thái Phiên làm
+              việc (Session Lock)
             </h3>
             <button
               type="button"
@@ -2460,11 +3136,17 @@ export function AdminPanel({
           {activeSession ? (
             <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs space-y-1">
               <div>
-                Đang giữ phiên: <span className="font-black text-slate-900">{activeSession.mainUser}</span>
-                {activeSession.checkerUser ? ` • Kiểm tra: ${activeSession.checkerUser}` : ''}
+                Đang giữ phiên:{" "}
+                <span className="font-black text-slate-900">
+                  {activeSession.mainUser}
+                </span>
+                {activeSession.checkerUser
+                  ? ` • Kiểm tra: ${activeSession.checkerUser}`
+                  : ""}
               </div>
               <div className="text-slate-600 font-semibold">
-                Ngày: {formatDateDisplay(activeSession.date)} • Ca {activeSession.shift} • Epoch: {activeSession.epoch || 'N/A'}
+                Ngày: {formatDateDisplay(activeSession.date)} • Ca{" "}
+                {activeSession.shift} • Epoch: {activeSession.epoch || "N/A"}
               </div>
             </div>
           ) : (
@@ -2477,7 +3159,8 @@ export function AdminPanel({
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2">
-              <Database className="w-4 h-4 text-sky-600" /> Kết nối Google Sheets API (Chu kỳ 6 tháng)
+              <Database className="w-4 h-4 text-sky-600" /> Kết nối Google
+              Sheets API (Chu kỳ 6 tháng)
             </h3>
             <button
               type="button"
@@ -2491,7 +3174,7 @@ export function AdminPanel({
             <input
               type="text"
               value={urlInput}
-              onChange={e => setUrlInput(e.target.value)}
+              onChange={(e) => setUrlInput(e.target.value)}
               className="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono text-slate-700"
             />
             <button
@@ -2500,12 +3183,15 @@ export function AdminPanel({
               onClick={handleSwitchEndpoint}
               className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-black uppercase shrink-0"
             >
-              {verifyingUrl ? 'Đang kiểm tra...' : 'Xác minh & Đổi URL'}
+              {verifyingUrl ? "Đang kiểm tra..." : "Xác minh & Đổi URL"}
             </button>
           </div>
           {sheets.length > 0 && (
             <div className="text-[11px] font-semibold text-slate-500">
-              Các Sheet hiện có: <span className="font-mono text-slate-700">{sheets.join(', ')}</span>
+              Các Sheet hiện có:{" "}
+              <span className="font-mono text-slate-700">
+                {sheets.join(", ")}
+              </span>
             </div>
           )}
         </div>
@@ -2516,17 +3202,22 @@ export function AdminPanel({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Danh mục Xét nghiệm & Cơ số Tồn kho
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Danh mục
+              Xét nghiệm & Cơ số Tồn kho
             </h3>
             <p className="text-xs font-semibold text-slate-500">
-              Lưu ý: Mã WIDAL được cấu hình đặc biệt (8 chân, chỉ ghi nhận BM.04, miễn trừ tồn kho BM.13).
+              Lưu ý: Mã WIDAL được cấu hình đặc biệt (8 chân, chỉ ghi nhận
+              BM.04, miễn trừ tồn kho BM.13).
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() =>
-                setDraftTests(prev => [...prev, { code: '', name: '', unit: 'TEST', quota: 10 }])
+                setDraftTests((prev) => [
+                  ...prev,
+                  { code: "", name: "", unit: "TEST", quota: 10 },
+                ])
               }
               className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1"
             >
@@ -2538,28 +3229,35 @@ export function AdminPanel({
               onClick={handleSaveCatalog}
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase"
             >
-              {savingTests ? 'Đang lưu...' : 'Lưu Danh Mục'}
+              {savingTests ? "Đang lưu..." : "Lưu Danh Mục"}
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {draftTests.map((t, idx) => {
-            const isWidal = String(t.code || '').trim().toUpperCase() === 'WIDAL';
+            const isWidal =
+              String(t.code || "")
+                .trim()
+                .toUpperCase() === "WIDAL";
             return (
               <div
                 key={idx}
                 className={`p-3 rounded-2xl border flex items-center gap-2 ${
-                  isWidal ? 'bg-purple-50/50 border-purple-200' : 'bg-slate-50 border-slate-200'
+                  isWidal
+                    ? "bg-purple-50/50 border-purple-200"
+                    : "bg-slate-50 border-slate-200"
                 }`}
               >
                 <input
                   type="text"
                   value={t.code}
                   disabled={isWidal}
-                  onChange={e => {
+                  onChange={(e) => {
                     const v = e.target.value.toUpperCase();
-                    setDraftTests(prev => prev.map((x, i) => (i === idx ? { ...x, code: v } : x)));
+                    setDraftTests((prev) =>
+                      prev.map((x, i) => (i === idx ? { ...x, code: v } : x))
+                    );
                   }}
                   placeholder="Mã"
                   className="w-20 px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-black uppercase bg-white"
@@ -2567,9 +3265,11 @@ export function AdminPanel({
                 <input
                   type="text"
                   value={t.name}
-                  onChange={e => {
+                  onChange={(e) => {
                     const v = e.target.value;
-                    setDraftTests(prev => prev.map((x, i) => (i === idx ? { ...x, name: v } : x)));
+                    setDraftTests((prev) =>
+                      prev.map((x, i) => (i === idx ? { ...x, name: v } : x))
+                    );
                   }}
                   placeholder="Tên hiển thị"
                   className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white"
@@ -2583,9 +3283,11 @@ export function AdminPanel({
                     type="number"
                     min={0}
                     value={t.quota}
-                    onChange={e => {
+                    onChange={(e) => {
                       const v = clampInt(e.target.value, 0, 99999);
-                      setDraftTests(prev => prev.map((x, i) => (i === idx ? { ...x, quota: v } : x)));
+                      setDraftTests((prev) =>
+                        prev.map((x, i) => (i === idx ? { ...x, quota: v } : x))
+                      );
                     }}
                     className="w-16 px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-black text-center bg-white"
                     title="Cơ số mặc định"
@@ -2594,7 +3296,9 @@ export function AdminPanel({
                 {!isWidal && (
                   <button
                     type="button"
-                    onClick={() => setDraftTests(prev => prev.filter((_, i) => i !== idx))}
+                    onClick={() =>
+                      setDraftTests((prev) => prev.filter((_, i) => i !== idx))
+                    }
                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -2610,35 +3314,42 @@ export function AdminPanel({
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2">
-            <Users className="w-4 h-4 text-sky-600" /> Quản lý Tài khoản Nhân viên ({users.length})
+            <Users className="w-4 h-4 text-sky-600" /> Quản lý Tài khoản Nhân
+            viên ({users.length})
           </h3>
           <button
             type="button"
             onClick={loadAdminData}
             className="text-xs font-bold text-sky-600 hover:underline flex items-center gap-1"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loadingUsers ? 'animate-spin' : ''}`} /> Làm mới
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${loadingUsers ? "animate-spin" : ""}`}
+            />{" "}
+            Làm mới
           </button>
         </div>
 
-        <form onSubmit={handleSaveUser} className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+        <form
+          onSubmit={handleSaveUser}
+          className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200"
+        >
           <input
             type="text"
             value={newId}
-            onChange={e => setNewId(e.target.value)}
+            onChange={(e) => setNewId(e.target.value)}
             placeholder="ID (vd: nvmoi)"
             className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white"
           />
           <input
             type="text"
             value={newName}
-            onChange={e => setNewName(e.target.value)}
+            onChange={(e) => setNewName(e.target.value)}
             placeholder="Họ và tên nhân viên"
             className="sm:col-span-2 px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white"
           />
           <select
             value={newRole}
-            onChange={e => setNewRole(e.target.value as Role)}
+            onChange={(e) => setNewRole(e.target.value as Role)}
             className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white"
           >
             <option value="User">Quyền: Nhân viên (User)</option>
@@ -2653,26 +3364,32 @@ export function AdminPanel({
         </form>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-          {users.map(u => (
+          {users.map((u) => (
             <div
               key={u.id}
               className="p-3 rounded-2xl border border-slate-200 flex items-center justify-between gap-2 hover:bg-slate-50"
             >
               <div className="min-w-0">
                 <div className="text-xs font-black text-slate-900 truncate">
-                  {u.name}{' '}
-                  <span className="text-[11px] font-mono text-slate-500">({u.id})</span>
+                  {u.name}{" "}
+                  <span className="text-[11px] font-mono text-slate-500">
+                    ({u.id})
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                      u.role === 'Admin' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                      u.role === "Admin"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-slate-100 text-slate-600"
                     }`}
                   >
                     {u.role}
                   </span>
                   {u.mustChange && (
-                    <span className="text-[10px] font-bold text-rose-600">• Mật khẩu mặc định</span>
+                    <span className="text-[10px] font-bold text-rose-600">
+                      • Mật khẩu mặc định
+                    </span>
                   )}
                 </div>
               </div>
@@ -2685,15 +3402,16 @@ export function AdminPanel({
                 >
                   Reset MK
                 </button>
-                {u.id.toLowerCase() !== 'thlong' && u.id.toLowerCase() !== currentUser.id.toLowerCase() && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteUser(u)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                {u.id.toLowerCase() !== "thlong" &&
+                  u.id.toLowerCase() !== currentUser.id.toLowerCase() && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteUser(u)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
               </div>
             </div>
           ))}
@@ -2703,8 +3421,6 @@ export function AdminPanel({
   );
 }
 
-// === ĐIỂM NỐI PART 3 -> PART 4 (Dán Part 4 nối tiếp ngay bên dưới dòng này) ===
-
 /* ====================== LÕI ĐIỀU PHỐI TRUNG TÂM (APP) ====================== */
 
 type TabKey = 'WORK' | 'BM13' | 'PRINT_BM04' | 'PRINT_BM13' | 'ADMIN';
@@ -2713,6 +3429,36 @@ interface ToastNotice {
   id: number;
   message: string;
   type: 'success' | 'error' | 'info';
+}
+
+/**
+ * Phát âm báo y tế 3 tiếng "Tít - Tít - Tít" (880Hz) bằng Web Audio API nội tại
+ * khi đồng hồ ủ test (10' / 15' / 20') chạm mốc 00:00.
+ */
+function playTripleBeepAlert() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    [0, 0.22, 0.44].forEach(offsetSec => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime + offsetSec);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + offsetSec);
+      gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + offsetSec + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + offsetSec + 0.14);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + offsetSec);
+      osc.stop(ctx.currentTime + offsetSec + 0.15);
+    });
+    window.setTimeout(() => {
+      try { ctx.close(); } catch {}
+    }, 900);
+  } catch {
+    // Bỏ qua nếu trình duyệt chặn tự động phát âm thanh
+  }
 }
 
 export function MainApp() {
@@ -2770,6 +3516,12 @@ export function MainApp() {
     v => Boolean(v && typeof v === 'object' && !Array.isArray(v))
   );
 
+  const [timers, setTimers] = usePersistentState<Record<string, PatientTimer>>(
+    STORAGE_KEYS.TIMERS,
+    {},
+    v => Boolean(v && typeof v === 'object' && !Array.isArray(v))
+  );
+
   const [outbox, setOutbox] = usePersistentState<OutboxItem[]>(
     STORAGE_KEYS.OUTBOX,
     [],
@@ -2802,7 +3554,6 @@ export function MainApp() {
   const realShift = useMemo(() => shiftOfDay(nowTick), [nowTick]);
 
   const [selectedDate, setSelectedDate] = useState<string>(() => businessDate());
-  // Lưu lựa chọn Ca thủ công của Admin (nếu Admin không bấm chọn thủ công, hệ thống tự nhảy theo ca thực tế)
   const [adminShiftOverride, setAdminShiftOverride] = useState<ShiftNumber | null>(null);
   const datePickedRef = useRef<boolean>(false);
 
@@ -2816,10 +3567,16 @@ export function MainApp() {
   const [hoTenBN, setHoTenBN] = useState('');
   const [gioiTinh, setGioiTinh] = useState<'Nam' | 'Nu'>('Nam');
   const [namSinh, setNamSinh] = useState('');
+  const [isAgeMode, setIsAgeMode] = useState<boolean>(false);
   const [barcode, setBarcode] = useState('');
   const [docChungDefault] = useState<DocChungValue>('Dương tính');
   const [selectedTestCodes, setSelectedTestCodes] = useState<string[]>([]);
   const [journalShiftFilter, setJournalShiftFilter] = useState<'ALL' | ShiftNumber>('ALL');
+
+  // State điều khiển Đồng hồ đếm ngược Hàng đợi (Cột 2A)
+  const [openTimerMenuId, setOpenTimerMenuId] = useState<string | null>(null);
+  const [timerNowMs, setTimerNowMs] = useState<number>(() => Date.now());
+  const beepedTimerMarksRef = useRef<Record<string, number>>({});
 
   // State cho các Modal
   const [showChangePwModal, setShowChangePwModal] = useState(false);
@@ -2837,13 +3594,56 @@ export function MainApp() {
     }, 4200);
   }, []);
 
-  // Nhịp đồng hồ mỗi 15 giây
+  // Nhịp đồng hồ hệ thống mỗi 15 giây
   useEffect(() => {
     const t = window.setInterval(() => {
       setNowTick(getTrustedNow());
     }, 15000);
     return () => window.clearInterval(t);
   }, []);
+
+  // Vòng lặp 1 giây duy nhất cho toàn bộ Đồng hồ đếm ngược (chỉ kích hoạt khi có ít nhất 1 đồng hồ đang chạy)
+  const hasActiveTimers = useMemo(() => Object.keys(timers).length > 0, [timers]);
+  useEffect(() => {
+    if (!hasActiveTimers) return;
+    setTimerNowMs(Date.now());
+    const timerId = window.setInterval(() => {
+      setTimerNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timerId);
+  }, [hasActiveTimers]);
+
+  // Phát đúng 3 tiếng "Tít - Tít - Tít" khi có bất kỳ đồng hồ nào vừa chạm mốc 00:00
+  useEffect(() => {
+    if (!hasActiveTimers) return;
+    let shouldBeep = false;
+    Object.keys(timers).forEach(itemId => {
+      const t = timers[itemId];
+      if (!t || !t.durationMs) return;
+      const remain = t.durationMs - (timerNowMs - t.startAt);
+      if (remain <= 0 && beepedTimerMarksRef.current[itemId] !== t.startAt) {
+        beepedTimerMarksRef.current[itemId] = t.startAt;
+        shouldBeep = true;
+      }
+    });
+    if (shouldBeep) {
+      playTripleBeepAlert();
+    }
+  }, [timerNowMs, timers, hasActiveTimers]);
+
+  // Tự động dọn dẹp đồng hồ của những bản ghi không còn trong hàng đợi
+  useEffect(() => {
+    const validIds = new Set(pendingQueue.map(p => p.id));
+    setTimers(prev => {
+      const keys = Object.keys(prev);
+      if (keys.every(k => validIds.has(k))) return prev;
+      const next: Record<string, PatientTimer> = {};
+      keys.forEach(k => {
+        if (validIds.has(k)) next[k] = prev[k];
+      });
+      return next;
+    });
+  }, [pendingQueue, setTimers]);
 
   // Tự động chuyển sang ngày làm việc mới nếu người dùng không bấm chọn ngày lịch sử
   useEffect(() => {
@@ -2878,11 +3678,6 @@ export function MainApp() {
     [selectedDate, testsConfig, bm04Logs, pendingQueue, bm13Raw, dirtyBm13, prevDayComputed.tonCuoiNgay]
   );
 
-  /**
-   * Xác định Ca làm việc thực tế (effectiveShift):
-   * - Tìm ca đầu tiên trong ngày chưa ở trạng thái HOAN_THANH.
-   * - Nếu tất cả các ca trước đã HOAN_THANH (hoặc đang ở ca hiện tại), trả về ca đó.
-   */
   const effectiveShift: ShiftNumber = useMemo(() => {
     for (const ca of [1, 2, 3, 4] as ShiftNumber[]) {
       const st = currentDayComputed.meta[ca]?.trangThai || 'OPEN';
@@ -2893,20 +3688,12 @@ export function MainApp() {
     return realShift;
   }, [currentDayComputed.meta, realShift]);
 
-  /**
-   * viewShift: Ca đang được chọn để thao tác.
-   * - Nhân viên luôn thao tác theo effectiveShift.
-   * - Admin mặc định cũng tự nhảy theo effectiveShift (để không bao giờ bị kẹt ở Ca 1 làm mất cột Sử dụng của Ca 2, 3, 4!),
-   *   trừ khi Admin chủ động chọn 1 ca cụ thể trên thanh Header (adminShiftOverride).
-   */
   const viewShift: ShiftNumber = useMemo(() => {
     if (isAdmin && adminShiftOverride) return adminShiftOverride;
     return effectiveShift;
   }, [isAdmin, adminShiftOverride, effectiveShift]);
 
-  // Kiểm tra xem Ca 4 ngày hôm trước (hoặc ca trước đó trong ngày) có đang chờ bàn giao không
   const yesterdayCa4PendingBlock = useMemo(() => {
-    // Chỉ kiểm tra khi ngày hôm trước thực sự có dữ liệu hoạt động trong BM13 hoặc BM04
     const hasPrevActivity =
       bm13Raw.some(r => r.ngayBC === prevDateStr) ||
       bm04Logs.some(l => l.ngayBC === prevDateStr) ||
@@ -2925,7 +3712,6 @@ export function MainApp() {
   }, [prevDateStr, bm13Raw, bm04Logs, pendingQueue, prevDayComputed.meta]);
 
   const currentShiftHandoverBlock = useMemo(() => {
-    // Kiểm tra có ca nào trong ngày đang ở trạng thái PENDING_RECEIVE (đã chốt nhưng ca sau chưa bấm Nhận)
     for (const ca of [1, 2, 3, 4] as ShiftNumber[]) {
       const m = currentDayComputed.meta[ca];
       if (m?.trangThai === 'PENDING_RECEIVE') {
@@ -2949,15 +3735,30 @@ export function MainApp() {
     [selectedDate, prevDateStr, currentDayComputed, prevDayComputed, testsConfig, bm04Logs, pendingQueue, bm13Raw, dirtyBm13]
   );
 
+  /**
+   * NHẬN DIỆN KHÓA PHIÊN TOÀN CỤC & QUYỀN TỐI THƯỢNG ADMIN:
+   * - isSessionHeldByOther: Cho biết hiện có đồng nghiệp khác đang giữ phiên chính thức hay không.
+   * - isLockedByOtherUser: Chỉ khóa giao diện đối với User thường. Admin luôn có quyền tối thượng xuyên khóa phiên!
+   */
+  const isSessionHeldByOther = useMemo(() => {
+    if (!auth || !activeSession) return false;
+    const ownerId = String(activeSession.mainUserId || '').toLowerCase();
+    if (ownerId) return ownerId !== auth.user.id.toLowerCase();
+    return activeSession.mainUser !== auth.user.name;
+  }, [auth, activeSession]);
+
+  const isLockedByOtherUser = isSessionHeldByOther && !isAdmin;
+
   // Kiểm tra quyền chỉnh sửa / xóa bản ghi của người dùng hiện tại
   const canUserModifyRecord = useCallback(
     (item: QueueItem): boolean => {
       if (!auth) return false;
-      if (isAdmin) return true;
+      if (isAdmin) return true; // Admin luôn có toàn quyền
+      if (isLockedByOtherUser) return false; // User thường bị khóa nếu không phải chủ phiên
       if (isShiftClosed(item.ngayBC, item.caTruc)) return false;
       return item.nguoiThucHien === auth.user.name;
     },
-    [auth, isAdmin, isShiftClosed]
+    [auth, isAdmin, isLockedByOtherUser, isShiftClosed]
   );
 
   /* ==================== HÀNG ĐỢI ĐỒNG BỘ BẤT TỬ (OUTBOX ENGINE) ==================== */
@@ -3009,7 +3810,6 @@ export function MainApp() {
   const syncFromCloud = useCallback(
     async (forceFull = false, targetDateOverride?: string) => {
       if (!auth || auth.mustChange) return;
-      // Không tải đè dữ liệu từ Server về khi máy đang bận đẩy hàng đợi Outbox lên Server
       if (flushingRef.current) return;
 
       setIsSyncing(true);
@@ -3049,14 +3849,12 @@ export function MainApp() {
         return;
       }
 
-      // Nếu trong lúc chờ tải về mà người dùng vừa bấm Xóa/Thêm mới vào Outbox thì ưu tiên giữ giao diện hiện tại
       if (flushingRef.current) return;
 
       if (Array.isArray(res.body.testsConfig) && res.body.testsConfig.length > 0) {
         setTestsConfig(res.body.testsConfig);
       }
 
-      // Phân loại chặt chẽ các ID đang nằm trong Outbox để KHÔNG BAO GIỜ làm "hồi sinh" bản ghi vừa xóa
       const pendingAddIds = new Set<string>();
       const processedIds = new Set<string>();
       const deletedBm04Ids = new Set<string>();
@@ -3137,14 +3935,9 @@ export function MainApp() {
     ]
   );
 
-  /**
-   * Xả hàng đợi Outbox liên hoàn (While-Loop Drain):
-   * Khi người dùng bấm Xóa hoặc Lưu nhiều ca liên tiếp, vòng lặp sẽ tự động gửi nối tiếp
-   * toàn bộ các mục mới phát sinh cho đến khi sạch hàng đợi rồi mới gọi syncFromCloud.
-   */
   const flushOutbox = useCallback(
     async (unpauseAll = false) => {
-      if (!auth || auth.mustChange || flushingRef.current) return;
+      if (!auth || auth.mustChange || isLockedByOtherUser || flushingRef.current) return;
       if (unpauseAll) {
         const unpaused = outboxRef.current.map(item => ({
           ...item,
@@ -3162,7 +3955,6 @@ export function MainApp() {
       let changedVersion = false;
 
       try {
-        // Vòng lặp while luôn lấy phần tử chưa gửi mới nhất từ outboxRef.current
         while (true) {
           const item = outboxRef.current.find(x => !x.paused);
           if (!item) break;
@@ -3211,12 +4003,16 @@ export function MainApp() {
             continue;
           }
 
+          if (res.body.activeSession) {
+            setActiveSession(res.body.activeSession);
+          }
+
           const code = String(res.body.code || '');
-          if (code === 'AUTH' || code === 'MUST_CHANGE') {
+          if (code === 'AUTH' || code === 'MUST_CHANGE' || code === 'SESSION_LOCKED' || code === 'SESSION_SUPERSEDED') {
             setOutbox(prev => {
               const next = prev.map(x =>
                 x.qid === item.qid
-                  ? { ...x, paused: true, lastError: res.body.message || 'Cần đăng nhập lại để đồng bộ.' }
+                  ? { ...x, paused: true, lastError: res.body.message || 'Phiên bị khóa hoặc cần đăng nhập lại.' }
                   : x
               );
               outboxRef.current = next;
@@ -3225,6 +4021,8 @@ export function MainApp() {
             if (code === 'AUTH') {
               notify('Phiên đăng nhập hết hạn. Dữ liệu vừa nhập vẫn được giữ trong Hàng đợi, vui lòng đăng nhập lại!', 'error');
               setAuth(null);
+            } else {
+              notify(res.body.message || 'Bạn đang ở chế độ Chỉ xem, không thể ghi dữ liệu.', 'error');
             }
             break;
           }
@@ -3263,25 +4061,22 @@ export function MainApp() {
         flushingRef.current = false;
       }
 
-      // Chỉ đồng bộ lại từ Cloud khi toàn bộ hàng đợi Outbox đã được vét sạch
       if (changedVersion && !outboxRef.current.some(x => !x.paused)) {
         syncFromCloud(true);
       }
     },
-    [auth, apiUrl, sessionEpoch, notify, setAuth, setOutbox, setDataVersion, syncFromCloud]
+    [auth, isLockedByOtherUser, apiUrl, sessionEpoch, notify, setAuth, setOutbox, setDataVersion, syncFromCloud]
   );
 
-  // Tự động xả Outbox ngay lập tức mỗi khi có thao tác mới trong outbox
   useEffect(() => {
-    if (!auth || auth.mustChange) return;
+    if (!auth || auth.mustChange || isLockedByOtherUser) return;
     flushOutbox(false);
     const timer = window.setInterval(() => {
       flushOutbox(false);
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [auth, outbox, flushOutbox]);
+  }, [auth, isLockedByOtherUser, outbox, flushOutbox]);
 
-  // Đồng bộ định kỳ dữ liệu từ Cloud mỗi 18 giây và khi đổi ngày
   useEffect(() => {
     if (!auth || auth.mustChange) return;
     syncFromCloud(true, selectedDate);
@@ -3289,7 +4084,7 @@ export function MainApp() {
       syncFromCloud(false, selectedDate);
     }, 18000);
     return () => window.clearInterval(timer);
-  }, [auth?.token, auth?.mustChange, selectedDate]);
+  }, [auth?.token, auth?.mustChange, selectedDate, syncFromCloud]);
 
   /* ==================== KHÓA PHIÊN (HEARTBEAT PING SESSION) ==================== */
 
@@ -3313,38 +4108,62 @@ export function MainApp() {
           setSessionEpoch(String(res.body.activeSession.epoch));
         }
         if (forceTakeover) {
-          notify(`Đã tiếp quản phiên làm việc Ca ${viewShift} thành công!`, 'success');
+          notify(`Đã tiếp quản phiên làm việc thành công! Bạn đang giữ phiên chính thức.`, 'success');
         }
       } else if (res.net && res.body.activeSession) {
         setActiveSession(res.body.activeSession);
         if (forceTakeover) {
-          notify(res.body.message || 'Chưa thể tiếp quản phiên.', 'error');
+          notify(res.body.message || 'Chưa thể tiếp quản phiên làm việc.', 'error');
         }
       }
     },
     [auth, apiUrl, selectedDate, viewShift, checker?.name, notify]
   );
 
+  /**
+   * CẢI TIẾN 1: Chỉ bắn nhịp pingSession tự động khi máy hiện tại đang giữ phiên (hoặc chưa có ai giữ phiên).
+   * Nếu đồng nghiệp khác đang giữ phiên (isSessionHeldByOther === true), tự động ngắt bộ đếm pingSession
+   * để tiết kiệm LockService trên Google Sheets và không tự ý cướp phiên của đồng nghiệp.
+   */
   useEffect(() => {
-    if (!auth || auth.mustChange) return;
+    if (!auth || auth.mustChange || isSessionHeldByOther) return;
     pingCurrentSession(false);
     const t = window.setInterval(() => {
       pingCurrentSession(false);
     }, 28000);
     return () => window.clearInterval(t);
-  }, [auth?.token, auth?.mustChange, selectedDate, viewShift, checker?.name, pingCurrentSession]);
+  }, [auth?.token, auth?.mustChange, isSessionHeldByOther, selectedDate, viewShift, checker?.name, pingCurrentSession]);
 
-  const isLockedByOtherUser = useMemo(() => {
-    if (!auth || !activeSession) return false;
-    if (activeSession.date !== selectedDate || Number(activeSession.shift) !== Number(viewShift)) return false;
-    const ownerId = String(activeSession.mainUserId || '').toLowerCase();
-    if (ownerId) return ownerId !== auth.user.id.toLowerCase();
-    return activeSession.mainUser !== auth.user.name;
-  }, [auth, activeSession, selectedDate, viewShift]);
+  /* ==================== CÁC HÀM THAO TÁC ĐỒNG HỒ ĐẾM NGƯỢC ==================== */
+
+  const handleStartTimer = (itemId: string, minutes: TimerPresetMinutes) => {
+    const now = Date.now();
+    delete beepedTimerMarksRef.current[itemId];
+    setTimers(prev => ({
+      ...prev,
+      [itemId]: {
+        startAt: now,
+        durationMs: minutes * 60 * 1000,
+        presetMin: minutes
+      }
+    }));
+    setTimerNowMs(now);
+    setOpenTimerMenuId(null);
+    notify(`Đã bật đồng hồ đếm ngược ${minutes} phút.`, 'info');
+  };
+
+  const handleCancelTimer = (itemId: string) => {
+    delete beepedTimerMarksRef.current[itemId];
+    setTimers(prev => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    setOpenTimerMenuId(null);
+  };
 
   /* ==================== CÁC HÀM THAO TÁC NGHIỆP VỤ BM.04 ==================== */
 
-  // Kỷ luật giao nhận ca: Nếu Ca 4 hôm qua hoặc ca trước chưa nhận bàn giao, khóa nhập Tab 1 (trừ Admin)
   const handoverLockReason = useMemo(() => {
     if (isAdmin) return '';
     if (yesterdayCa4PendingBlock && selectedDate === todayStr) {
@@ -3357,6 +4176,10 @@ export function MainApp() {
   }, [isAdmin, yesterdayCa4PendingBlock, selectedDate, todayStr, currentShiftHandoverBlock]);
 
   const handleToggleTestCode = (code: string) => {
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên. Bấm "Tiếp quản phiên" nếu muốn thao tác.`, 'error');
+      return;
+    }
     setSelectedTestCodes(prev =>
       prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
     );
@@ -3366,13 +4189,13 @@ export function MainApp() {
     e.preventDefault();
     if (!auth) return;
 
+    if (isLockedByOtherUser) {
+      notify(`Hệ thống đang được giữ phiên bởi ${activeSession?.mainUser}. Bạn đang ở chế độ Chỉ xem!`, 'error');
+      return;
+    }
     if (handoverLockReason) {
       notify(handoverLockReason, 'error');
       setActiveTab('BM13');
-      return;
-    }
-    if (isLockedByOtherUser && !isAdmin) {
-      notify(`Ca ${viewShift} đang được khóa phiên bởi ${activeSession?.mainUser}.`, 'error');
       return;
     }
     if (isShiftClosed(selectedDate, viewShift) && !isAdmin) {
@@ -3395,9 +4218,16 @@ export function MainApp() {
       notify('Vui lòng nhập Họ và tên bệnh nhân.', 'error');
       return;
     }
-    if (!cleanYear || !Number.isInteger(yearNum) || yearNum < 1900 || yearNum > currentYear) {
-      notify(`Năm sinh không hợp lệ (1900 - ${currentYear}).`, 'error');
-      return;
+    if (isAgeMode) {
+      if (!cleanYear || !Number.isInteger(yearNum) || yearNum < 1 || yearNum > 130) {
+        notify('Tuổi không hợp lệ (Vui lòng nhập số nguyên từ 1 đến 130).', 'error');
+        return;
+      }
+    } else {
+      if (!cleanYear || !Number.isInteger(yearNum) || yearNum < 1900 || yearNum > currentYear) {
+        notify(`Năm sinh không hợp lệ (1900 - ${currentYear}). Nếu muốn nhập tuổi, hãy tích vào ô "Tuổi".`, 'error');
+        return;
+      }
     }
     if (!cleanBc) {
       notify('Vui lòng nhập Barcode bệnh nhân.', 'error');
@@ -3423,6 +4253,7 @@ export function MainApp() {
         hoTenBN: cleanName,
         namSinhNam: gioiTinh === 'Nam' ? cleanYear : '',
         namSinhNu: gioiTinh === 'Nu' ? cleanYear : '',
+        isAgeMode,
         barcode: cleanBc,
         docChung: docChungDefault,
         nguoiThucHien: auth.user.name,
@@ -3445,8 +4276,10 @@ export function MainApp() {
       checkerProof: checker.proof
     });
 
+    // CẢI TIẾN 2: Xóa trắng Form và tự động trả dấu tick [✓] Tuổi về mặc định (Năm sinh)
     setHoTenBN('');
     setNamSinh('');
+    setIsAgeMode(false);
     setBarcode('');
     setSelectedTestCodes([]);
     notify(`Đã đẩy ${newItems.length} xét nghiệm vào Hàng đợi (Ca ${viewShift}).`, 'success');
@@ -3454,6 +4287,10 @@ export function MainApp() {
 
   const handleSaveResultFromQueue = (item: QueueItem, rawKetQuaOverride?: string, docChungOverride?: DocChungValue) => {
     if (!auth) return;
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      return;
+    }
     if (isShiftClosed(item.ngayBC, item.caTruc) && !isAdmin) {
       notify(`Ca ${item.caTruc} ngày ${formatDateDisplay(item.ngayBC)} đã chốt, không thể lưu kết quả mới.`, 'error');
       return;
@@ -3477,9 +4314,16 @@ export function MainApp() {
       lanSuaCuoi: ''
     };
 
+    delete beepedTimerMarksRef.current[item.id];
     setPendingQueue(prev => prev.filter(p => p.id !== item.id));
     setBm04Logs(prev => [completedRecord, ...prev.filter(x => x.id !== item.id)]);
     setDrafts(prev => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
+    setTimers(prev => {
+      if (!prev[item.id]) return prev;
       const next = { ...prev };
       delete next[item.id];
       return next;
@@ -3493,14 +4337,11 @@ export function MainApp() {
     notify(`Đã lưu kết quả [${item.tenXetNghiem}] cho BN ${item.hoTenBN}.`, 'success');
   };
 
-  /**
-   * Cập nhật lại kết quả BM.04 đã lưu (Nút Cây bút kế bên Thùng rác):
-   * - Giữ nguyên mốc thời gian trả kết quả lần đầu (item.thoiGianDocKQ).
-   * - Đánh dấu lanSuaCuoi để hiển thị nhãn (Đã sửa) trên màn hình web (tàng hình trên bản in A4).
-   * - Ghi vào AUDIT_LOGS trên Google Sheets.
-   */
   const handleUpdateBM04Result = async (id: string, nextDocChung: DocChungValue, nextKetQua: string) => {
     if (!auth) return;
+    if (isLockedByOtherUser) {
+      throw new Error(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`);
+    }
     const target = bm04Logs.find(x => x.id === id);
     if (!target) return;
 
@@ -3510,7 +4351,6 @@ export function MainApp() {
 
     const stamp = `${formatVnTimeNow()} (${auth.user.name})`;
 
-    // Cập nhật ngay trên giao diện và giữ nguyên target.thoiGianDocKQ
     setBm04Logs(prev =>
       prev.map(x =>
         x.id === id
@@ -3543,7 +4383,7 @@ export function MainApp() {
     }
 
     if (res.body.status !== 'success') {
-      // Khôi phục lại giá trị cũ nếu máy chủ từ chối
+      if (res.body.activeSession) setActiveSession(res.body.activeSession);
       setBm04Logs(prev => prev.map(x => (x.id === id ? target : x)));
       throw new Error(res.body.message || 'Máy chủ từ chối cập nhật kết quả.');
     }
@@ -3553,6 +4393,10 @@ export function MainApp() {
   };
 
   const handleDeletePendingItem = (item: QueueItem) => {
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      return;
+    }
     if (!canUserModifyRecord(item)) {
       notify('Bạn chỉ được xóa xét nghiệm chờ do chính mình tạo trong ca đang mở.', 'error');
       return;
@@ -3560,12 +4404,23 @@ export function MainApp() {
     if (!window.confirm(`Hủy xét nghiệm chờ [${item.tenXetNghiem}] của BN ${item.hoTenBN} (Ca ${item.caTruc} - ${formatDateDisplay(item.ngayBC)})?`)) {
       return;
     }
+    delete beepedTimerMarksRef.current[item.id];
     setPendingQueue(prev => prev.filter(x => x.id !== item.id));
+    setTimers(prev => {
+      if (!prev[item.id]) return prev;
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
     enqueueOutbox('deletePending', { id: item.id });
     notify(`Đã xóa xét nghiệm chờ [${item.tenXetNghiem}].`, 'info');
   };
 
   const handleDeleteBM04Item = (item: QueueItem) => {
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      return;
+    }
     if (!canUserModifyRecord(item)) {
       notify('Ca trực đã chốt hoặc bạn không có quyền xóa kết quả này.', 'error');
       return;
@@ -3581,6 +4436,10 @@ export function MainApp() {
   /* ==================== CÁC HÀM THAO TÁC TỒN KHO & BÀN GIAO BM.13 ==================== */
 
   const handleUpdateShiftCell = (shift: ShiftNumber, code: string, field: 'boiHoan' | 'suDungQC', rawVal: any) => {
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      return;
+    }
     if (!isStockTestCode(code)) return;
     if (isShiftClosed(selectedDate, shift) && !isAdmin) {
       notify(`Ca ${shift} đã chốt bàn giao, không thể sửa số liệu.`, 'error');
@@ -3616,6 +4475,10 @@ export function MainApp() {
   };
 
   const handleApplyBulkReplenish = (shift: ShiftNumber, map: Record<string, number>) => {
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      return;
+    }
     if (isShiftClosed(selectedDate, shift) && !isAdmin) {
       notify(`Ca ${shift} đã chốt bàn giao.`, 'error');
       return;
@@ -3651,6 +4514,10 @@ export function MainApp() {
   };
 
   const handleUpdateDayTonDauOrNote = (newTonDauMap?: Record<string, number>, newNote?: string) => {
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      return;
+    }
     const key = `${selectedDate}_DAY`;
     const nextTonDau = newTonDauMap !== undefined ? newTonDauMap : currentDayComputed.tonDau;
     const nextNote = newNote !== undefined ? newNote : currentDayComputed.ghiChu;
@@ -3673,6 +4540,10 @@ export function MainApp() {
 
   const handleConfirmCloseShift = async (shift: ShiftNumber) => {
     if (!auth) return;
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      return;
+    }
     const pendingOfThisShift = pendingQueue.filter(
       p => p.ngayBC === selectedDate && Number(p.caTruc) === Number(shift)
     ).length;
@@ -3692,7 +4563,6 @@ export function MainApp() {
     const gioGiao = formatVnTimeNow();
     setClosingLoading(true);
 
-    // Đẩy hết Outbox tồn đọng trước khi chốt ca
     await flushOutbox(false);
 
     const res = await rpcCall(
@@ -3711,24 +4581,26 @@ export function MainApp() {
     setClosingLoading(false);
 
     if (!res.net || res.body.status !== 'success') {
+      if (res.body.activeSession) setActiveSession(res.body.activeSession);
       notify(res.body.message || 'Chưa thể chốt ca (Kiểm tra kết nối mạng hoặc xử lý hết hàng đợi).', 'error');
       return;
     }
 
     setClosingShiftModal(null);
-    await rpcCall(apiUrl, 'clearSession', {}, auth.token);
+    if (!isSessionHeldByOther) {
+      await rpcCall(apiUrl, 'clearSession', {}, auth.token);
+    }
     setChecker(null);
     setAuth(null);
     notify(`Đã chốt bàn giao Ca ${shift} thành công và đăng xuất an toàn.`, 'success');
   };
 
-  /**
-   * Vá F-11 & Giữ nguyên nghiệp vụ trực xuyên ca:
-   * - Nhân viên trực xuyên 2 ca có thể đăng nhập lại và bấm Nhận bàn giao ca mình vừa giao.
-   * - Chỉ thông báo thành công sau khi máy chủ xác nhận (res.body.status === 'success').
-   */
   const handleReceiveShiftHandover = async (targetDate: string, shift: ShiftNumber) => {
     if (!auth) return;
+    if (isLockedByOtherUser) {
+      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên. Bấm "Tiếp quản phiên" trước khi ký nhận ca.`, 'error');
+      return;
+    }
     const res = await rpcCall(
       apiUrl,
       'shiftOp',
@@ -3742,11 +4614,11 @@ export function MainApp() {
     );
 
     if (!res.net || res.body.status !== 'success') {
+      if (res.body.activeSession) setActiveSession(res.body.activeSession);
       notify(res.body.message || 'Không thể ký nhận bàn giao ca. Vui lòng thử lại.', 'error');
       return;
     }
 
-    // Tự động chuyển lựa chọn Ca về ca kế tiếp sau khi nhận bàn giao xong
     setAdminShiftOverride(null);
     await syncFromCloud(true, selectedDate);
     notify(`Đã ký nhận bàn giao Ca ${shift} ngày ${formatDateDisplay(targetDate)} thành công!`, 'success');
@@ -3783,7 +4655,7 @@ export function MainApp() {
   };
 
   const handleLogout = async () => {
-    if (outbox.length > 0) {
+    if (outbox.length > 0 && !isLockedByOtherUser) {
       await flushOutbox(false);
       if (outboxRef.current.length > 0) {
         if (!window.confirm(`Còn ${outboxRef.current.length} thao tác chưa đồng bộ lên máy chủ. Bạn vẫn muốn đăng xuất? (Dữ liệu hàng đợi vẫn được bảo toàn trên trình duyệt)`)) {
@@ -3791,14 +4663,12 @@ export function MainApp() {
         }
       }
     }
-    if (auth) {
+    if (auth && !isSessionHeldByOther) {
       await rpcCall(apiUrl, 'clearSession', {}, auth.token);
     }
     setChecker(null);
     setAuth(null);
   };
-
-// === ĐIỂM NỐI PART 4 -> PART 5 (Dán Part 5 nối tiếp ngay bên dưới dòng này) ===
 
   /* ==================== DỮ LIỆU HIỂN THỊ TRONG NGÀY (TAB 1 & TAB 2) ==================== */
 
@@ -3812,8 +4682,6 @@ export function MainApp() {
     });
   }, [pendingQueue, selectedDate]);
 
-  // Nhật ký BM.04 trong ngày: Sắp xếp chuẩn theo thứ tự Ca 1 -> Ca 2 -> Ca 3 -> Ca 4
-  // (Nếu Admin thêm bổ sung bệnh nhân vào Ca 1, Ca 2 thì vẫn gom đúng thứ tự Ca 1, Ca 2, Ca 3, Ca 4)
   const todayBm04Logs = useMemo(() => {
     const list = bm04Logs.filter(l => {
       if (String(l.ngayBC || '').trim() !== selectedDate) return false;
@@ -3832,11 +4700,6 @@ export function MainApp() {
     [currentDayComputed.tests]
   );
 
-  // const pendingCountOfViewShift = useMemo(
-  //   () => pendingQueue.filter(p => p.ngayBC === selectedDate && Number(p.caTruc) === Number(viewShift)).length,
-  //   [pendingQueue, selectedDate, viewShift]
-  // );
-
   const pausedOutboxCount = useMemo(() => outbox.filter(x => x.paused).length, [outbox]);
 
   /* ==================== RENDER MÀN HÌNH ĐĂNG NHẬP NẾU CHƯA AUTH ==================== */
@@ -3845,8 +4708,30 @@ export function MainApp() {
     return (
       <LoginScreen
         apiUrl={apiUrl}
-        onSuccess={nextAuth => {
+        onSuccess={(nextAuth, initialSession) => {
           setAuth(nextAuth);
+          if (initialSession !== undefined) {
+            setActiveSession(initialSession);
+            const ownerId = String(initialSession?.mainUserId || '').toLowerCase();
+            const isOther =
+              Boolean(initialSession) &&
+              (ownerId
+                ? ownerId !== nextAuth.user.id.toLowerCase()
+                : initialSession!.mainUser !== nextAuth.user.name);
+            if (isOther && initialSession) {
+              if (nextAuth.user.role === 'Admin') {
+                notify(
+                  `Phiên đang được giữ bởi ${initialSession.mainUser} (Ca ${initialSession.shift}). Quyền Tối Thượng Admin đã kích hoạt!`,
+                  'info'
+                );
+              } else {
+                notify(
+                  `Cảnh báo: Phiên làm việc đang được giữ bởi ${initialSession.mainUser} (Ca ${initialSession.shift}). Bạn đang ở chế độ CHỈ XEM!`,
+                  'info'
+                );
+              }
+            }
+          }
           if (nextAuth.mustChange) {
             setShowChangePwModal(true);
           }
@@ -3860,6 +4745,7 @@ export function MainApp() {
   }
 
   const activeShiftTheme = SHIFT_THEME[viewShift] || SHIFT_THEME[1];
+  const isWorkDisabled = Boolean(handoverLockReason) || isLockedByOtherUser;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col justify-between">
@@ -3954,14 +4840,14 @@ export function MainApp() {
               )}
             </div>
 
-            {/* Bộ chọn Ca trực (Trang trí mỗi Ca 1 màu riêng biệt) */}
+            {/* Bộ chọn Ca trực */}
             <div
               className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 border shadow-sm transition ${activeShiftTheme.headerSelectBg}`}
             >
               <Clock className="w-3.5 h-3.5 shrink-0" />
               <select
                 value={viewShift}
-                disabled={!isAdmin}
+                disabled={!isAdmin || isLockedByOtherUser}
                 onChange={e => {
                   const nextCa = Number(e.target.value) as ShiftNumber;
                   setAdminShiftOverride(nextCa === effectiveShift ? null : nextCa);
@@ -3978,7 +4864,7 @@ export function MainApp() {
                   </option>
                 ))}
               </select>
-              {isAdmin && adminShiftOverride && (
+              {isAdmin && adminShiftOverride && !isLockedByOtherUser && (
                 <button
                   type="button"
                   onClick={() => setAdminShiftOverride(null)}
@@ -3993,8 +4879,9 @@ export function MainApp() {
             {/* Nút Người Kiểm Tra */}
             <button
               type="button"
+              disabled={isLockedByOtherUser}
               onClick={() => setShowCheckerModal(true)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 border transition ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 border transition disabled:opacity-50 ${
                 checker
                   ? 'bg-emerald-600/90 border-emerald-400/50 text-white'
                   : 'bg-amber-500/90 border-amber-300 text-slate-950 animate-pulse'
@@ -4008,7 +4895,7 @@ export function MainApp() {
             <button
               type="button"
               onClick={() => {
-                flushOutbox(true);
+                if (!isLockedByOtherUser) flushOutbox(true);
                 syncFromCloud(true, selectedDate);
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 border transition ${
@@ -4146,23 +5033,75 @@ export function MainApp() {
         </div>
       </header>
 
-      {/* CÁC BANNER CẢNH BÁO KHÓA PHIÊN & GIAO NHẬN CA */}
+      {/* CÁC BANNER CẢNH BÁO KHÓA PHIÊN (CHẾ ĐỘ CHỈ XEM / QUYỀN TỐI THƯỢNG ADMIN) & GIAO NHẬN CA */}
       <div className="no-print max-w-[1600px] w-full mx-auto px-4 pt-3 space-y-2">
         {isLockedByOtherUser && (
-          <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>
-                Ca {viewShift} ngày {formatDateDisplay(selectedDate)} đang được giữ phiên bởi{' '}
-                <strong className="underline">{activeSession?.mainUser}</strong>.
-              </span>
+          <div className="p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-400 text-amber-950 text-xs font-bold flex flex-wrap items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-black uppercase text-amber-900">
+                  Cảnh báo: Bạn đang ở Chế độ Chỉ Xem (Read-Only)
+                </div>
+                <div className="text-[11px] font-semibold text-amber-800 mt-0.5">
+                  Phiên làm việc hiện đang được giữ bởi đồng nghiệp{' '}
+                  <strong className="underline font-black text-slate-900">{activeSession?.mainUser}</strong> (Ca{' '}
+                  {activeSession?.shift} • Ngày {formatDateDisplay(activeSession?.date || selectedDate)}). Mọi thao tác chỉnh sửa đã tạm khóa để bảo vệ dữ liệu.
+                </div>
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => pingCurrentSession(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Xác nhận TIẾP QUẢN PHIÊN LÀM VIỆC từ đồng nghiệp [${activeSession?.mainUser}]?\n(Sau khi tiếp quản, máy của ${activeSession?.mainUser} sẽ chuyển sang chế độ Chỉ xem)`
+                  )
+                ) {
+                  pingCurrentSession(true);
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-sm transition shrink-0"
             >
               Tiếp quản phiên làm việc
+            </button>
+          </div>
+        )}
+
+        {/* BANNER QUYỀN TỐI THƯỢNG DÀNH RIÊNG CHO ADMIN KHI ĐỒNG NGHIỆP ĐANG GIỮ PHIÊN */}
+        {isSessionHeldByOther && isAdmin && (
+          <div className="p-3.5 rounded-2xl bg-purple-50 border-2 border-purple-400 text-purple-950 text-xs font-bold flex flex-wrap items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-black uppercase text-purple-900">
+                  Quyền Tối Thượng Admin Đang Kích Hoạt
+                </div>
+                <div className="text-[11px] font-semibold text-purple-800 mt-0.5">
+                  Phiên làm việc hiện đang được giữ bởi đồng nghiệp{' '}
+                  <strong className="underline font-black text-slate-900">{activeSession?.mainUser}</strong> (Ca{' '}
+                  {activeSession?.shift} • Ngày {formatDateDisplay(activeSession?.date || selectedDate)}). Bạn là Admin nên có toàn quyền thao tác xuyên phiên mà không làm văng phiên của đồng nghiệp.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Bạn có muốn chuyển hẳn quyền giữ phiên chính thức sang tài khoản Admin của bạn không?\n(Nếu chỉ muốn sửa/nhập hộ mà giữ nguyên phiên cho [${activeSession?.mainUser}], hãy bấm Hủy — bạn vẫn thao tác được bình thường!)`
+                  )
+                ) {
+                  pingCurrentSession(true);
+                }
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-black uppercase tracking-wider shadow-sm transition shrink-0"
+            >
+              Chuyển phiên sang Admin
             </button>
           </div>
         )}
@@ -4207,6 +5146,11 @@ export function MainApp() {
                     </span>
                   </p>
                 </div>
+                {isLockedByOtherUser && (
+                  <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-black uppercase">
+                    Chỉ xem
+                  </span>
+                )}
               </div>
 
               <form onSubmit={handleAddToQueue} className="space-y-3.5">
@@ -4218,7 +5162,7 @@ export function MainApp() {
                     type="text"
                     value={hoTenBN}
                     onChange={e => setHoTenBN(e.target.value.toUpperCase())}
-                    disabled={Boolean(handoverLockReason)}
+                    disabled={isWorkDisabled}
                     placeholder="NGUYỄN VĂN A"
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-black uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-100"
                   />
@@ -4232,8 +5176,9 @@ export function MainApp() {
                         <button
                           key={g}
                           type="button"
+                          disabled={isWorkDisabled}
                           onClick={() => setGioiTinh(g)}
-                          className={`py-1.5 rounded-lg text-xs font-black transition ${
+                          className={`py-1.5 rounded-lg text-xs font-black transition disabled:opacity-60 ${
                             gioiTinh === g ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-600'
                           }`}
                         >
@@ -4243,15 +5188,39 @@ export function MainApp() {
                     </div>
                   </div>
 
+                  {/* Ô NHẬP NĂM SINH KÈM DẤU TICK TUỔI (KHÔNG TỰ QUY ĐỔI CHÉO) */}
                   <div className="col-span-3">
-                    <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">Năm sinh *</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-black uppercase text-slate-600">
+                        {isAgeMode ? 'Tuổi *' : 'Năm sinh *'}
+                      </label>
+                      <label
+                        className="inline-flex items-center gap-1 cursor-pointer select-none text-[10px] font-black text-sky-700 hover:text-sky-800"
+                        title="Tích chọn để nhập số Tuổi thay vì Năm sinh (không tự động quy đổi)"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isAgeMode}
+                          disabled={isWorkDisabled}
+                          onChange={e => setIsAgeMode(e.target.checked)}
+                          className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span>Tuổi</span>
+                      </label>
+                    </div>
                     <input
                       type="number"
                       value={namSinh}
                       onChange={e => setNamSinh(e.target.value)}
-                      disabled={Boolean(handoverLockReason)}
-                      placeholder="1985"
-                      className="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-sm font-black text-center text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-100"
+                      disabled={isWorkDisabled}
+                      placeholder={isAgeMode ? 'VD: 35' : '1985'}
+                      min={isAgeMode ? 1 : 1900}
+                      max={isAgeMode ? 130 : getVnParts().year}
+                      className={`w-full px-2 py-2 rounded-xl border text-sm font-black text-center text-slate-900 focus:outline-none focus:ring-2 disabled:bg-slate-100 ${
+                        isAgeMode
+                          ? 'border-amber-400 bg-amber-50/40 focus:ring-amber-500'
+                          : 'border-slate-300 focus:ring-sky-500'
+                      }`}
                     />
                   </div>
 
@@ -4261,19 +5230,19 @@ export function MainApp() {
                       type="text"
                       value={barcode}
                       onChange={e => setBarcode(e.target.value)}
-                      disabled={Boolean(handoverLockReason)}
+                      disabled={isWorkDisabled}
                       placeholder="21110772"
                       className="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-100"
                     />
                   </div>
                 </div>
-             
+
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-[11px] font-black uppercase text-slate-600">
                       Chọn Xét Nghiệm ({selectedTestCodes.length} đã chọn) *
                     </label>
-                    {selectedTestCodes.length > 0 && (
+                    {selectedTestCodes.length > 0 && !isWorkDisabled && (
                       <button
                         type="button"
                         onClick={() => setSelectedTestCodes([])}
@@ -4293,9 +5262,9 @@ export function MainApp() {
                         <button
                           key={t.code}
                           type="button"
-                          disabled={Boolean(handoverLockReason)}
+                          disabled={isWorkDisabled}
                           onClick={() => handleToggleTestCode(t.code)}
-                          className={`p-2 rounded-xl border text-left transition flex flex-col justify-between ${
+                          className={`p-2 rounded-xl border text-left transition flex flex-col justify-between disabled:opacity-60 ${
                             active
                               ? 'bg-sky-600 text-white border-sky-600 shadow-md'
                               : isNoStock
@@ -4325,7 +5294,7 @@ export function MainApp() {
 
                 <button
                   type="submit"
-                  disabled={Boolean(handoverLockReason)}
+                  disabled={isWorkDisabled}
                   className={`w-full py-3 rounded-2xl text-white font-black text-xs uppercase tracking-wider shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50 ${activeShiftTheme.badgeBg} hover:opacity-95`}
                 >
                   <Plus className="w-4 h-4" />
@@ -4334,16 +5303,16 @@ export function MainApp() {
               </form>
             </div>
 
-            {/* CỘT 2 (5/12): HÀNG ĐỢI CHỜ ĐỌC KẾT QUẢ & NHẬT KÝ BM.04 HÔM NAY */}
+            {/* CỘT 2 (5/12): HÀNG ĐỢI CHỜ ĐỌC KẾT QUẢ (CÓ ĐỒNG HỒ ĐẾM NGƯỢC) & NHẬT KÝ BM.04 HÔM NAY */}
             <div className="lg:col-span-5 space-y-4">
-             {/* Khung 2A: Hàng đợi chờ đọc kết quả */}
-             <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
+              {/* Khung 2A: Hàng đợi chờ đọc kết quả */}
+              <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                   <h2 className="text-sm font-black uppercase text-slate-900">
                     2. Chờ Đọc Kết Quả ({visiblePending.length})
                   </h2>
                   <span className="text-[11px] font-bold text-slate-500">
-                    Bấm Âm/Dương để lưu ngay vào Sổ BM.04
+                    Nhấn ⏱ để hẹn 10&apos; / 15&apos; / 20&apos; (Báo 3 tiếng Tít khi hết giờ)
                   </span>
                 </div>
 
@@ -4352,22 +5321,51 @@ export function MainApp() {
                     Hàng đợi đang sạch. Chưa có xét nghiệm nào chờ đọc kết quả.
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                  <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
                     {visiblePending.map(item => {
                       const isMulti = Boolean(getSubTests(item.maTest));
                       const draft = drafts[item.id] || { docChung: item.docChung, ketQua: '' };
                       const itemShiftTheme = SHIFT_THEME[item.caTruc] || SHIFT_THEME[1];
                       const isFromPastDate = item.ngayBC !== selectedDate;
 
+                      // Tính toán trạng thái Đồng hồ đếm ngược cho từng bệnh nhân
+                      const tInfo = timers[item.id];
+                      let remainMs = 0;
+                      let remainRatio = 1;
+                      let timerLevel: 'NONE' | 'SAFE' | 'WARN_50' | 'CRIT_5' = 'NONE';
+
+                      if (tInfo && tInfo.durationMs > 0) {
+                        const elapsed = Math.max(0, timerNowMs - tInfo.startAt);
+                        remainMs = Math.max(0, tInfo.durationMs - elapsed);
+                        remainRatio = remainMs / tInfo.durationMs;
+                        if (remainRatio <= 0.05) {
+                          timerLevel = 'CRIT_5'; // Còn <= 5% thời gian: Nhấp nháy đỏ khẩn cấp
+                        } else if (remainRatio <= 0.5) {
+                          timerLevel = 'WARN_50'; // Còn <= 50% thời gian: Chuyển nền vàng cảnh báo
+                        } else {
+                          timerLevel = 'SAFE';
+                        }
+                      }
+
+                      const cardBgClass =
+                        timerLevel === 'CRIT_5'
+                          ? 'bg-rose-100 border-2 border-rose-500 shadow-md ring-2 ring-rose-300 animate-pulse'
+                          : timerLevel === 'WARN_50'
+                          ? 'bg-amber-100/90 border-2 border-amber-400 shadow-sm'
+                          : isFromPastDate
+                          ? 'bg-amber-50/70 border border-amber-300'
+                          : 'bg-slate-50/70 border border-slate-200';
+
+                      const rawBirthOrAge = item.namSinhNam || item.namSinhNu;
+                      const isAgeValue = item.isAgeMode || (Number(rawBirthOrAge) > 0 && Number(rawBirthOrAge) <= 130);
+
                       return (
                         <div
                           key={item.id}
-                          className={`rounded-2xl border p-3.5 space-y-2.5 transition ${
-                            isFromPastDate ? 'bg-amber-50/70 border-amber-300' : 'bg-slate-50/70 border-slate-200'
-                          }`}
+                          className={`rounded-2xl p-3.5 space-y-2.5 transition-all ${cardBgClass}`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span
                                   className={`px-2 py-0.5 rounded-md text-[11px] font-black ${itemShiftTheme.badgeBg} ${itemShiftTheme.badgeText}`}
@@ -4386,26 +5384,134 @@ export function MainApp() {
                                   {item.hoTenBN}
                                 </span>
                               </div>
-                              <div className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                                Barcode: <span className="font-bold text-slate-800">{item.barcode}</span> • Năm sinh:{' '}
-                                <span className="font-bold text-slate-700">
-                                  {item.namSinhNam || item.namSinhNu} ({item.namSinhNam ? 'Nam' : 'Nữ'})
+                              <div className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                                Barcode: <span className="font-bold text-slate-900">{item.barcode}</span> •{' '}
+                                {isAgeValue ? 'Tuổi' : 'Năm sinh'}:{' '}
+                                <span className="font-bold text-slate-800">
+                                  {rawBirthOrAge} ({item.namSinhNam ? 'Nam' : 'Nữ'})
                                 </span>{' '}
                                 • TH: {item.nguoiThucHien}
                               </div>
                             </div>
 
-                            {canUserModifyRecord(item) && (
+                            {/* CỤM NÚT ĐỒNG HỒ ĐẾM NGƯỢC (10' / 15' / 20') & NÚT XÓA */}
+                            <div className="flex items-center gap-1 shrink-0 relative">
                               <button
                                 type="button"
-                                onClick={() => handleDeletePendingItem(item)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                                title="Hủy xét nghiệm chờ này"
+                                disabled={isLockedByOtherUser}
+                                onClick={() =>
+                                  setOpenTimerMenuId(prev => (prev === item.id ? null : item.id))
+                                }
+                                className={`px-2.5 py-1 rounded-xl text-[11px] font-black flex items-center gap-1 border transition disabled:opacity-50 ${
+                                  timerLevel === 'CRIT_5'
+                                    ? 'bg-rose-600 text-white border-rose-700 shadow-sm'
+                                    : timerLevel === 'WARN_50'
+                                    ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-sm'
+                                    : timerLevel === 'SAFE'
+                                    ? 'bg-sky-600 text-white border-sky-700 shadow-sm'
+                                    : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-300'
+                                }`}
+                                title="Bấm để chọn thời gian đếm ngược (10', 15', 20')"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                {tInfo ? (
+                                  <span>
+                                    {remainMs <= 0 ? 'ĐỌC KQ!' : formatCountdownMmSs(remainMs)} ({tInfo.presetMin}&apos;)
+                                  </span>
+                                ) : (
+                                  <span>Hẹn giờ</span>
+                                )}
                               </button>
-                            )}
+
+                              {canUserModifyRecord(item) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePendingItem(item)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                  title="Hủy xét nghiệm chờ này"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
                           </div>
+
+                          {/* MENU CHỌN MỐC ĐẾM NGƯỢC 10' / 15' / 20' */}
+                          {openTimerMenuId === item.id && !isLockedByOtherUser && (
+                            <div className="flex flex-wrap items-center justify-between gap-1.5 bg-white/95 p-2 rounded-xl border border-sky-300 shadow-sm">
+                              <span className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-sky-600" /> Chọn thời gian ủ test:
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {([10, 15, 20] as TimerPresetMinutes[]).map(mins => {
+                                  const isSelected = tInfo?.presetMin === mins;
+                                  return (
+                                    <button
+                                      key={mins}
+                                      type="button"
+                                      onClick={() => handleStartTimer(item.id, mins)}
+                                      className={`px-3 py-1 rounded-lg text-xs font-black transition ${
+                                        isSelected
+                                          ? 'bg-sky-600 text-white shadow-sm'
+                                          : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200'
+                                      }`}
+                                    >
+                                      {mins}&apos;
+                                    </button>
+                                  );
+                                })}
+                                {tInfo && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelTimer(item.id)}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-black"
+                                  >
+                                    Tắt
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* THANH TIẾN TRÌNH ĐẾM NGƯỢC TRỰC QUAN */}
+                          {tInfo && (
+                            <div className="space-y-1">
+                              <div className="w-full h-1.5 rounded-full bg-white/80 overflow-hidden border border-slate-200/80">
+                                <div
+                                  className={`h-full transition-all duration-500 ${
+                                    timerLevel === 'CRIT_5'
+                                      ? 'bg-rose-600'
+                                      : timerLevel === 'WARN_50'
+                                      ? 'bg-amber-500'
+                                      : 'bg-sky-600'
+                                  }`}
+                                  style={{ width: `${Math.max(2, Math.min(100, remainRatio * 100))}%` }}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-[10px] font-black uppercase">
+                                <span
+                                  className={
+                                    timerLevel === 'CRIT_5'
+                                      ? 'text-rose-700'
+                                      : timerLevel === 'WARN_50'
+                                      ? 'text-amber-800'
+                                      : 'text-sky-700'
+                                  }
+                                >
+                                  {timerLevel === 'CRIT_5'
+                                    ? remainMs <= 0
+                                      ? '🚨 Đã hết thời gian ủ — Đọc kết quả ngay!'
+                                      : '🚨 Còn ≤ 5% thời gian — Chuẩn bị đọc kết quả ngay!'
+                                    : timerLevel === 'WARN_50'
+                                    ? '⚠️ Còn ≤ 50% thời gian ủ test'
+                                    : `⏱ Đang đếm ngược mốc ${tInfo.presetMin} phút`}
+                                </span>
+                                <span className="font-mono text-slate-700">
+                                  Còn lại: {formatCountdownMmSs(remainMs)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Chọn kết quả: Đa chân hoặc Đơn chân */}
                           {isMulti ? (
@@ -4425,8 +5531,9 @@ export function MainApp() {
                                       <button
                                         key={dc}
                                         type="button"
+                                        disabled={isLockedByOtherUser}
                                         onClick={() => setDrafts(prev => ({ ...prev, [item.id]: { ...draft, docChung: dc } }))}
-                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition ${
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition disabled:opacity-50 ${
                                           active ? activeCls : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
                                         }`}
                                       >
@@ -4439,6 +5546,7 @@ export function MainApp() {
                               <MultiPanelResultInput
                                 maTest={item.maTest}
                                 value={draft.ketQua}
+                                disabled={isLockedByOtherUser}
                                 onChange={nextVal =>
                                   setDrafts(prev => ({
                                     ...prev,
@@ -4450,14 +5558,15 @@ export function MainApp() {
                               />
                               <button
                                 type="button"
+                                disabled={isLockedByOtherUser}
                                 onClick={() => handleSaveResultFromQueue(item)}
-                                className="w-full py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm"
+                                className="w-full py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm"
                               >
                                 <Check className="w-4 h-4" /> Lưu kết quả {item.tenXetNghiem}
                               </button>
                             </div>
                           ) : (
-                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                            <div className="space-y-2 pt-2 border-t border-slate-200/70">
                               <div className="flex items-center justify-between bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl">
                                 <span className="text-[11px] font-black uppercase tracking-wider text-indigo-900">
                                   Đọc chứng (C):
@@ -4473,8 +5582,9 @@ export function MainApp() {
                                       <button
                                         key={dc}
                                         type="button"
+                                        disabled={isLockedByOtherUser}
                                         onClick={() => setDrafts(prev => ({ ...prev, [item.id]: { ...draft, docChung: dc } }))}
-                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition ${
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition disabled:opacity-50 ${
                                           active ? activeCls : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
                                         }`}
                                       >
@@ -4487,15 +5597,17 @@ export function MainApp() {
                               <div className="grid grid-cols-2 gap-2">
                                 <button
                                   type="button"
+                                  disabled={isLockedByOtherUser}
                                   onClick={() => handleSaveResultFromQueue(item, 'Âm tính')}
-                                  className="py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-black uppercase shadow-md transition"
+                                  className="py-3 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-black uppercase shadow-md transition"
                                 >
                                   ÂM TÍNH (LƯU)
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={isLockedByOtherUser}
                                   onClick={() => handleSaveResultFromQueue(item, 'Dương tính')}
-                                  className="py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-black uppercase shadow-md transition"
+                                  className="py-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-sm font-black uppercase shadow-md transition"
                                 >
                                   DƯƠNG TÍNH (LƯU)
                                 </button>
@@ -4509,7 +5621,7 @@ export function MainApp() {
                 )}
               </div>
 
-              {/* Khung 2B: NHẬT KÝ BM.04 HÔM NAY (Phân màu 4 Ca, xếp đúng thứ tự Ca 1->4, có nút Cây bút Sửa kế bên Thùng rác) */}
+              {/* Khung 2B: NHẬT KÝ BM.04 HÔM NAY */}
               <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                   <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-600">
@@ -4657,15 +5769,17 @@ export function MainApp() {
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
+                    disabled={isLockedByOtherUser}
                     onClick={() => setReplenishShiftModal(viewShift)}
-                    className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-black"
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-700 border border-emerald-200 text-[11px] font-black"
                   >
                     + Bồi hoàn
                   </button>
                   <button
                     type="button"
+                    disabled={isLockedByOtherUser}
                     onClick={() => setClosingShiftModal(viewShift)}
-                    className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-black"
+                    className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-[11px] font-black"
                   >
                     Chốt Ca {viewShift}
                   </button>
@@ -4785,15 +5899,17 @@ export function MainApp() {
                         <>
                           <button
                             type="button"
+                            disabled={isLockedByOtherUser}
                             onClick={() => setReplenishShiftModal(ca)}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-black"
+                            className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-700 border border-emerald-200 text-xs font-black"
                           >
                             + Bồi hoàn
                           </button>
                           <button
                             type="button"
+                            disabled={isLockedByOtherUser}
                             onClick={() => setClosingShiftModal(ca)}
-                            className="flex-1 py-1.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-black uppercase"
+                            className="flex-1 py-1.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase"
                           >
                             Chốt Ca {ca} {pendingCnt > 0 ? `(${pendingCnt} chờ)` : ''}
                           </button>
@@ -4803,14 +5919,15 @@ export function MainApp() {
                       {m.trangThai === 'PENDING_RECEIVE' && (
                         <button
                           type="button"
+                          disabled={isLockedByOtherUser}
                           onClick={() => handleReceiveShiftHandover(selectedDate, ca)}
-                          className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase shadow-sm"
+                          className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-black uppercase shadow-sm"
                         >
                           ✍️ Ký Nhận Bàn Giao Ca {ca}
                         </button>
                       )}
 
-                      {m.trangThai !== 'OPEN' && isAdmin && (
+                      {m.trangThai !== 'OPEN' && isAdmin && !isLockedByOtherUser && (
                         <button
                           type="button"
                           onClick={() => handleAdminResetShift(ca)}
@@ -4833,16 +5950,17 @@ export function MainApp() {
                     Bảng Điều Phối Tồn Kho BM.13 — Ngày {formatDateDisplay(selectedDate)}
                   </h3>
                   <p className="text-xs font-semibold text-slate-500">
-                    Cột "Sử dụng" tự động đếm từ BM.04 + Hàng đợi theo đúng từng Ca 1, 2, 3, 4.
+                    Cột &quot;Sử dụng&quot; tự động đếm từ BM.04 + Hàng đợi theo đúng từng Ca 1, 2, 3, 4.
                   </p>
                 </div>
                 <div className="w-full sm:w-96">
                   <input
                     type="text"
+                    disabled={isLockedByOtherUser}
                     value={currentDayComputed.ghiChu}
                     onChange={e => handleUpdateDayTonDauOrNote(undefined, e.target.value)}
                     placeholder="Ghi chú tồn kho trong ngày..."
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold disabled:bg-slate-100"
                   />
                 </div>
               </div>
@@ -4879,7 +5997,7 @@ export function MainApp() {
                       <td className="py-2 px-3 font-black text-slate-900">{t.name}</td>
                       <td className="py-2 px-2 text-center font-bold text-slate-500">{t.quota}</td>
                       <td className="py-2 px-2 text-center bg-sky-50/50">
-                        {isAdmin ? (
+                        {isAdmin && !isLockedByOtherUser ? (
                           <input
                             type="number"
                             value={currentDayComputed.tonDau[t.code] ?? 0}
@@ -4904,7 +6022,7 @@ export function MainApp() {
                           suDung: 0,
                           tonCuoi: 0
                         };
-                        const closed = isShiftClosed(selectedDate, ca) && !isAdmin;
+                        const closed = (isShiftClosed(selectedDate, ca) && !isAdmin) || isLockedByOtherUser;
                         return (
                           <React.Fragment key={ca}>
                             <td className="py-1.5 px-1 text-center border-l border-slate-100">
