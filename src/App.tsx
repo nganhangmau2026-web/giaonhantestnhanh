@@ -47,7 +47,7 @@ import {
 
 const DEFAULT_API_URL =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GAS_API_URL) ||
-  'https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec';
+  "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec";
 
 const STORAGE_KEYS = Object.freeze({
   API_URL: "MD_API_URL_V2",
@@ -2463,8 +2463,8 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
     });
   }, [logs, selectedDate, filterTest, filterShift]);
 
-  // THUẬT TOÁN TỰ ĐỘNG CHIA TRANG (CHUNKING)
-  const ROWS_PER_PAGE = 18;
+  // THUẬT TOÁN TỰ ĐỘNG CHIA TRANG (CHUNKING) - Tối ưu lấp đầy trang A4 ngang (16 dòng/trang)
+  const ROWS_PER_PAGE = 16;
   const totalPages = Math.max(1, Math.ceil(dayLogs.length / ROWS_PER_PAGE));
 
   const pages = useMemo(() => {
@@ -2475,7 +2475,7 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
         (i + 1) * ROWS_PER_PAGE
       );
       while (chunk.length < ROWS_PER_PAGE) {
-        chunk.push(null); // Bơm dòng trống cho đủ 18 dòng
+        chunk.push(null); // Bơm dòng trống cho đủ 16 dòng
       }
       result.push(chunk);
     }
@@ -2531,87 +2531,69 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
         </button>
       </div>
 
-      {/* LẶP QUA TỪNG TRANG VÀ IN RA (Áp dụng pageBreakAfter để ngắt trang A4) */}
+      {/* LẶP QUA TỪNG TRANG VÀ IN RA (Đã tối ưu padding và chiều cao dòng chống tràn trang) */}
       {pages.map((pageRows, pageIndex) => (
         <div
           key={pageIndex}
-          className="print-sheet bg-white px-2 py-4 text-black"
+          className="print-sheet bg-white px-2 py-1 text-black"
           style={{
             pageBreakAfter: pageIndex < totalPages - 1 ? "always" : "auto",
           }}
         >
-          <div className="flex items-end justify-between mb-4 border-b-2 border-black pb-2">
-            <div className="text-sm font-bold">
+          <div className="flex items-end justify-between mb-2 border-b-2 border-black pb-1">
+            <div className="text-xs font-bold">
               Sổ lưu kết quả xét nghiệm thực hiện thủ công
             </div>
-            <div className="text-sm font-bold">BM.04.XN.QTQL.37</div>
+            <div className="text-xs font-bold">BM.04.XN.QTQL.37</div>
           </div>
 
-          <table className="w-full border-collapse border border-black text-[10px] text-center">
+          <table className="w-full border-collapse border border-black text-[10px] text-center table-fixed">
             <thead>
               <tr className="bg-slate-100 font-bold">
-                <th rowSpan={2} className="border border-black px-1 py-1 w-8">
+                <th rowSpan={2} className="border border-black p-1 w-[3%]">
                   STT
                 </th>
-                <th
-                  rowSpan={2}
-                  className="border border-black px-1.5 py-1 w-28"
-                >
+                <th rowSpan={2} className="border border-black p-1 w-[13%]">
                   TÊN XÉT NGHIỆM
                 </th>
                 <th
                   rowSpan={2}
-                  className="border border-black px-2 py-1 text-left"
+                  className="border border-black p-1 text-left w-[15%]"
                 >
                   HỌ VÀ TÊN BỆNH NHÂN
                 </th>
-                <th colSpan={2} className="border border-black px-1 py-1">
+                <th colSpan={2} className="border border-black p-1 w-[6%]">
                   NĂM SINH
                 </th>
-                <th
-                  rowSpan={2}
-                  className="border border-black px-1.5 py-1 w-24"
-                >
+                <th rowSpan={2} className="border border-black p-1 w-[8%]">
                   BARCODE
                 </th>
-                <th rowSpan={2} className="border border-black px-1 py-1 w-20">
+                <th rowSpan={2} className="border border-black p-1 w-[7%]">
                   ĐỌC CHỨNG
                 </th>
-                <th
-                  rowSpan={2}
-                  className="border border-black px-1.5 py-1 w-48"
-                >
+                <th rowSpan={2} className="border border-black p-1 w-[22%]">
                   KẾT QUẢ
                 </th>
-                <th
-                  rowSpan={2}
-                  className="border border-black px-1.5 py-1 w-28"
-                >
+                <th rowSpan={2} className="border border-black p-1 w-[8%]">
                   THỜI GIAN ĐỌC KQ
                 </th>
-                <th
-                  rowSpan={2}
-                  className="border border-black px-1.5 py-1 w-32"
-                >
+                <th rowSpan={2} className="border border-black p-1 w-[9%]">
                   NGƯỜI THỰC HIỆN
                 </th>
-                <th
-                  rowSpan={2}
-                  className="border border-black px-1.5 py-1 w-32"
-                >
+                <th rowSpan={2} className="border border-black p-1 w-[9%]">
                   NGƯỜI KIỂM TRA
                 </th>
               </tr>
               <tr className="bg-slate-100 font-bold">
-                <th className="border border-black px-1 py-0.5 w-12">Nam</th>
-                <th className="border border-black px-1 py-0.5 w-12">Nữ</th>
+                <th className="border border-black p-1 w-[3%]">Nam</th>
+                <th className="border border-black p-1 w-[3%]">Nữ</th>
               </tr>
             </thead>
             <tbody>
               {pageRows.map((r, idx) => (
                 <tr
                   key={r ? r.id : `empty_${pageIndex}_${idx}`}
-                  className="h-6"
+                  className="h-[36px]"
                 >
                   <td className="border border-black px-1 py-0.5 font-semibold">
                     {r ? pageIndex * ROWS_PER_PAGE + idx + 1 : ""}
@@ -2619,7 +2601,7 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
                   <td className="border border-black px-1 py-0.5 font-bold uppercase truncate">
                     {r ? r.tenXetNghiem : ""}
                   </td>
-                  <td className="border border-black px-2 py-0.5 text-left font-bold uppercase">
+                  <td className="border border-black px-2 py-0.5 text-left font-bold uppercase truncate">
                     {r ? r.hoTenBN : ""}
                   </td>
                   <td className="border border-black px-1 py-0.5 font-semibold">
@@ -2628,16 +2610,16 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
                   <td className="border border-black px-1 py-0.5 font-semibold">
                     {r ? r.namSinhNu : ""}
                   </td>
-                  <td className="border border-black px-1 py-0.5 font-bold">
+                  <td className="border border-black px-1 py-0.5 font-bold truncate">
                     {r ? r.barcode : ""}
                   </td>
-                  <td className="border border-black px-1 py-0.5 font-semibold">
+                  <td className="border border-black px-1 py-0.5 font-semibold truncate">
                     {r ? r.docChung : ""}
                   </td>
                   <td className="border border-black px-1 py-0.5">
                     {renderKetQuaBM04(r)}
                   </td>
-                  <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold">
+                  <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
                     {r ? r.thoiGianDocKQ : ""}
                   </td>
                   <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
@@ -3423,12 +3405,12 @@ export function AdminPanel({
 
 /* ====================== LÕI ĐIỀU PHỐI TRUNG TÂM (APP) ====================== */
 
-type TabKey = 'WORK' | 'BM13' | 'PRINT_BM04' | 'PRINT_BM13' | 'ADMIN';
+type TabKey = "WORK" | "BM13" | "PRINT_BM04" | "PRINT_BM13" | "ADMIN";
 
 interface ToastNotice {
   id: number;
   message: string;
-  type: 'success' | 'error' | 'info';
+  type: "success" | "error" | "info";
 }
 
 /**
@@ -3440,21 +3422,29 @@ function playTripleBeepAlert() {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
-    [0, 0.22, 0.44].forEach(offsetSec => {
+    [0, 0.22, 0.44].forEach((offsetSec) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sine';
+      osc.type = "sine";
       osc.frequency.setValueAtTime(880, ctx.currentTime + offsetSec);
       gain.gain.setValueAtTime(0.0001, ctx.currentTime + offsetSec);
-      gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + offsetSec + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + offsetSec + 0.14);
+      gain.gain.exponentialRampToValueAtTime(
+        0.22,
+        ctx.currentTime + offsetSec + 0.015
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        ctx.currentTime + offsetSec + 0.14
+      );
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(ctx.currentTime + offsetSec);
       osc.stop(ctx.currentTime + offsetSec + 0.15);
     });
     window.setTimeout(() => {
-      try { ctx.close(); } catch {}
+      try {
+        ctx.close();
+      } catch {}
     }, 900);
   } catch {
     // Bỏ qua nếu trình duyệt chặn tự động phát âm thanh
@@ -3465,113 +3455,138 @@ export function MainApp() {
   const [apiUrl, setApiUrl] = usePersistentState<string>(
     STORAGE_KEYS.API_URL,
     DEFAULT_API_URL,
-    v => typeof v === 'string' && v.length > 5
+    (v) => typeof v === "string" && v.length > 5
   );
 
   const [auth, setAuth] = usePersistentState<AuthState | null>(
     STORAGE_KEYS.AUTH,
     null,
-    v => v === null || (typeof v === 'object' && typeof v.token === 'string' && v.user && typeof v.user.id === 'string')
+    (v) =>
+      v === null ||
+      (typeof v === "object" &&
+        typeof v.token === "string" &&
+        v.user &&
+        typeof v.user.id === "string")
   );
 
   const [checker, setChecker] = usePersistentState<CheckerState | null>(
     STORAGE_KEYS.CHECKER,
     null,
-    v => v === null || (typeof v === 'object' && typeof v.id === 'string' && typeof v.proof === 'string')
+    (v) =>
+      v === null ||
+      (typeof v === "object" &&
+        typeof v.id === "string" &&
+        typeof v.proof === "string")
   );
 
   const [testsConfig, setTestsConfig] = usePersistentState<TestConfig[]>(
     STORAGE_KEYS.TESTS,
     DEFAULT_TESTS,
-    v => Array.isArray(v) && v.length > 0
+    (v) => Array.isArray(v) && v.length > 0
   );
 
   const [bm04Logs, setBm04Logs] = usePersistentState<QueueItem[]>(
     STORAGE_KEYS.BM04,
     [],
-    v => Array.isArray(v)
+    (v) => Array.isArray(v)
   );
 
   const [pendingQueue, setPendingQueue] = usePersistentState<QueueItem[]>(
     STORAGE_KEYS.PENDING,
     [],
-    v => Array.isArray(v)
+    (v) => Array.isArray(v)
   );
 
   const [bm13Raw, setBm13Raw] = usePersistentState<RawBM13Row[]>(
     STORAGE_KEYS.BM13_RAW,
     [],
-    v => Array.isArray(v)
+    (v) => Array.isArray(v)
   );
 
   const [dirtyBm13, setDirtyBm13] = usePersistentState<Record<string, any>>(
     STORAGE_KEYS.BM13_DIRTY,
     {},
-    v => Boolean(v && typeof v === 'object' && !Array.isArray(v))
+    (v) => Boolean(v && typeof v === "object" && !Array.isArray(v))
   );
 
   const [drafts, setDrafts] = usePersistentState<Record<string, DraftResult>>(
     STORAGE_KEYS.DRAFTS,
     {},
-    v => Boolean(v && typeof v === 'object' && !Array.isArray(v))
+    (v) => Boolean(v && typeof v === "object" && !Array.isArray(v))
   );
 
   const [timers, setTimers] = usePersistentState<Record<string, PatientTimer>>(
     STORAGE_KEYS.TIMERS,
     {},
-    v => Boolean(v && typeof v === 'object' && !Array.isArray(v))
+    (v) => Boolean(v && typeof v === "object" && !Array.isArray(v))
   );
 
   const [outbox, setOutbox] = usePersistentState<OutboxItem[]>(
     STORAGE_KEYS.OUTBOX,
     [],
-    v => Array.isArray(v)
+    (v) => Array.isArray(v)
   );
 
   const [dataVersion, setDataVersion] = usePersistentState<string>(
     STORAGE_KEYS.DATA_VERSION,
-    '0',
-    v => typeof v === 'string'
+    "0",
+    (v) => typeof v === "string"
   );
 
   // Đảm bảo danh mục luôn có WIDAL (miễn trừ tồn kho)
   useEffect(() => {
-    if (!testsConfig.some(t => String(t.code || '').toUpperCase() === 'WIDAL')) {
-      setTestsConfig(prev => [...prev, { code: 'WIDAL', name: 'WIDAL', unit: 'TEST', quota: 0, noStock: true }]);
+    if (
+      !testsConfig.some((t) => String(t.code || "").toUpperCase() === "WIDAL")
+    ) {
+      setTestsConfig((prev) => [
+        ...prev,
+        { code: "WIDAL", name: "WIDAL", unit: "TEST", quota: 0, noStock: true },
+      ]);
     }
   }, [testsConfig, setTestsConfig]);
 
   // Nếu đổi tài khoản chính thì xóa chữ ký Người kiểm tra của phiên trước
   useEffect(() => {
-    if (auth && checker && checker.verifiedForUserId.toLowerCase() !== auth.user.id.toLowerCase()) {
+    if (
+      auth &&
+      checker &&
+      checker.verifiedForUserId.toLowerCase() !== auth.user.id.toLowerCase()
+    ) {
       setChecker(null);
     }
   }, [auth, checker, setChecker]);
 
-  const [activeTab, setActiveTab] = useState<TabKey>('WORK');
+  const [activeTab, setActiveTab] = useState<TabKey>("WORK");
   const [nowTick, setNowTick] = useState<Date>(() => getTrustedNow());
   const todayStr = useMemo(() => businessDate(nowTick), [nowTick]);
   const realShift = useMemo(() => shiftOfDay(nowTick), [nowTick]);
 
-  const [selectedDate, setSelectedDate] = useState<string>(() => businessDate());
-  const [adminShiftOverride, setAdminShiftOverride] = useState<ShiftNumber | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    businessDate()
+  );
+  const [adminShiftOverride, setAdminShiftOverride] =
+    useState<ShiftNumber | null>(null);
   const datePickedRef = useRef<boolean>(false);
 
-  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
-  const [sessionEpoch, setSessionEpoch] = useState<string>('');
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(
+    null
+  );
+  const [sessionEpoch, setSessionEpoch] = useState<string>("");
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastNotice[]>([]);
 
   // State cho Form thêm Bệnh nhân (Cột 1 - Tab 1)
-  const [hoTenBN, setHoTenBN] = useState('');
-  const [gioiTinh, setGioiTinh] = useState<'Nam' | 'Nu'>('Nam');
-  const [namSinh, setNamSinh] = useState('');
+  const [hoTenBN, setHoTenBN] = useState("");
+  const [gioiTinh, setGioiTinh] = useState<"Nam" | "Nu">("Nam");
+  const [namSinh, setNamSinh] = useState("");
   const [isAgeMode, setIsAgeMode] = useState<boolean>(false);
-  const [barcode, setBarcode] = useState('');
-  const [docChungDefault] = useState<DocChungValue>('Dương tính');
+  const [barcode, setBarcode] = useState("");
+  const [docChungDefault] = useState<DocChungValue>("Dương tính");
   const [selectedTestCodes, setSelectedTestCodes] = useState<string[]>([]);
-  const [journalShiftFilter, setJournalShiftFilter] = useState<'ALL' | ShiftNumber>('ALL');
+  const [journalShiftFilter, setJournalShiftFilter] = useState<
+    "ALL" | ShiftNumber
+  >("ALL");
 
   // State điều khiển Đồng hồ đếm ngược Hàng đợi (Cột 2A)
   const [openTimerMenuId, setOpenTimerMenuId] = useState<string | null>(null);
@@ -3581,18 +3596,25 @@ export function MainApp() {
   // State cho các Modal
   const [showChangePwModal, setShowChangePwModal] = useState(false);
   const [showCheckerModal, setShowCheckerModal] = useState(false);
-  const [editingBm04Item, setEditingBm04Item] = useState<QueueItem | null>(null);
-  const [replenishShiftModal, setReplenishShiftModal] = useState<ShiftNumber | null>(null);
-  const [closingShiftModal, setClosingShiftModal] = useState<ShiftNumber | null>(null);
+  const [editingBm04Item, setEditingBm04Item] = useState<QueueItem | null>(
+    null
+  );
+  const [replenishShiftModal, setReplenishShiftModal] =
+    useState<ShiftNumber | null>(null);
+  const [closingShiftModal, setClosingShiftModal] =
+    useState<ShiftNumber | null>(null);
   const [closingLoading, setClosingLoading] = useState(false);
 
-  const notify = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    setToasts(prev => [...prev.slice(-3), { id, message, type }]);
-    window.setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4200);
-  }, []);
+  const notify = useCallback(
+    (message: string, type: "success" | "error" | "info" = "info") => {
+      const id = Date.now() + Math.floor(Math.random() * 1000);
+      setToasts((prev) => [...prev.slice(-3), { id, message, type }]);
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 4200);
+    },
+    []
+  );
 
   // Nhịp đồng hồ hệ thống mỗi 15 giây
   useEffect(() => {
@@ -3603,7 +3625,10 @@ export function MainApp() {
   }, []);
 
   // Vòng lặp 1 giây duy nhất cho toàn bộ Đồng hồ đếm ngược (chỉ kích hoạt khi có ít nhất 1 đồng hồ đang chạy)
-  const hasActiveTimers = useMemo(() => Object.keys(timers).length > 0, [timers]);
+  const hasActiveTimers = useMemo(
+    () => Object.keys(timers).length > 0,
+    [timers]
+  );
   useEffect(() => {
     if (!hasActiveTimers) return;
     setTimerNowMs(Date.now());
@@ -3617,7 +3642,7 @@ export function MainApp() {
   useEffect(() => {
     if (!hasActiveTimers) return;
     let shouldBeep = false;
-    Object.keys(timers).forEach(itemId => {
+    Object.keys(timers).forEach((itemId) => {
       const t = timers[itemId];
       if (!t || !t.durationMs) return;
       const remain = t.durationMs - (timerNowMs - t.startAt);
@@ -3633,12 +3658,12 @@ export function MainApp() {
 
   // Tự động dọn dẹp đồng hồ của những bản ghi không còn trong hàng đợi
   useEffect(() => {
-    const validIds = new Set(pendingQueue.map(p => p.id));
-    setTimers(prev => {
+    const validIds = new Set(pendingQueue.map((p) => p.id));
+    setTimers((prev) => {
       const keys = Object.keys(prev);
-      if (keys.every(k => validIds.has(k))) return prev;
+      if (keys.every((k) => validIds.has(k))) return prev;
       const next: Record<string, PatientTimer> = {};
-      keys.forEach(k => {
+      keys.forEach((k) => {
         if (validIds.has(k)) next[k] = prev[k];
       });
       return next;
@@ -3653,14 +3678,23 @@ export function MainApp() {
     }
   }, [todayStr, selectedDate]);
 
-  const isAdmin = Boolean(auth?.user.role === 'Admin');
+  const isAdmin = Boolean(auth?.user.role === "Admin");
 
   /* ==================== TÍNH TOÁN TỒN KHO NGÀY HIỆN TẠI & HÔM TRƯỚC ==================== */
 
   const prevDateStr = useMemo(() => addDays(selectedDate, -1), [selectedDate]);
 
   const prevDayComputed = useMemo(
-    () => computeDaySingle(prevDateStr, testsConfig, bm04Logs, pendingQueue, bm13Raw, dirtyBm13, null),
+    () =>
+      computeDaySingle(
+        prevDateStr,
+        testsConfig,
+        bm04Logs,
+        pendingQueue,
+        bm13Raw,
+        dirtyBm13,
+        null
+      ),
     [prevDateStr, testsConfig, bm04Logs, pendingQueue, bm13Raw, dirtyBm13]
   );
 
@@ -3675,13 +3709,21 @@ export function MainApp() {
         dirtyBm13,
         prevDayComputed.tonCuoiNgay
       ),
-    [selectedDate, testsConfig, bm04Logs, pendingQueue, bm13Raw, dirtyBm13, prevDayComputed.tonCuoiNgay]
+    [
+      selectedDate,
+      testsConfig,
+      bm04Logs,
+      pendingQueue,
+      bm13Raw,
+      dirtyBm13,
+      prevDayComputed.tonCuoiNgay,
+    ]
   );
 
   const effectiveShift: ShiftNumber = useMemo(() => {
     for (const ca of [1, 2, 3, 4] as ShiftNumber[]) {
-      const st = currentDayComputed.meta[ca]?.trangThai || 'OPEN';
-      if (st !== 'HOAN_THANH') {
+      const st = currentDayComputed.meta[ca]?.trangThai || "OPEN";
+      if (st !== "HOAN_THANH") {
         return ca;
       }
     }
@@ -3695,17 +3737,17 @@ export function MainApp() {
 
   const yesterdayCa4PendingBlock = useMemo(() => {
     const hasPrevActivity =
-      bm13Raw.some(r => r.ngayBC === prevDateStr) ||
-      bm04Logs.some(l => l.ngayBC === prevDateStr) ||
-      pendingQueue.some(p => p.ngayBC === prevDateStr);
+      bm13Raw.some((r) => r.ngayBC === prevDateStr) ||
+      bm04Logs.some((l) => l.ngayBC === prevDateStr) ||
+      pendingQueue.some((p) => p.ngayBC === prevDateStr);
     if (!hasPrevActivity) return null;
     const ca4Meta = prevDayComputed.meta[4];
-    if (ca4Meta && ca4Meta.trangThai !== 'HOAN_THANH') {
+    if (ca4Meta && ca4Meta.trangThai !== "HOAN_THANH") {
       return {
         date: prevDateStr,
         shift: 4 as ShiftNumber,
         status: ca4Meta.trangThai,
-        nguoiGiao: ca4Meta.nguoiGiao
+        nguoiGiao: ca4Meta.nguoiGiao,
       };
     }
     return null;
@@ -3714,8 +3756,13 @@ export function MainApp() {
   const currentShiftHandoverBlock = useMemo(() => {
     for (const ca of [1, 2, 3, 4] as ShiftNumber[]) {
       const m = currentDayComputed.meta[ca];
-      if (m?.trangThai === 'PENDING_RECEIVE') {
-        return { date: selectedDate, shift: ca, status: m.trangThai, nguoiGiao: m.nguoiGiao };
+      if (m?.trangThai === "PENDING_RECEIVE") {
+        return {
+          date: selectedDate,
+          shift: ca,
+          status: m.trangThai,
+          nguoiGiao: m.nguoiGiao,
+        };
       }
     }
     return null;
@@ -3728,11 +3775,29 @@ export function MainApp() {
           ? currentDayComputed
           : dateStr === prevDateStr
           ? prevDayComputed
-          : computeDaySingle(dateStr, testsConfig, bm04Logs, pendingQueue, bm13Raw, dirtyBm13, null);
-      const st = targetComp.meta[shift]?.trangThai || 'OPEN';
-      return st === 'PENDING_RECEIVE' || st === 'HOAN_THANH';
+          : computeDaySingle(
+              dateStr,
+              testsConfig,
+              bm04Logs,
+              pendingQueue,
+              bm13Raw,
+              dirtyBm13,
+              null
+            );
+      const st = targetComp.meta[shift]?.trangThai || "OPEN";
+      return st === "PENDING_RECEIVE" || st === "HOAN_THANH";
     },
-    [selectedDate, prevDateStr, currentDayComputed, prevDayComputed, testsConfig, bm04Logs, pendingQueue, bm13Raw, dirtyBm13]
+    [
+      selectedDate,
+      prevDateStr,
+      currentDayComputed,
+      prevDayComputed,
+      testsConfig,
+      bm04Logs,
+      pendingQueue,
+      bm13Raw,
+      dirtyBm13,
+    ]
   );
 
   /**
@@ -3742,7 +3807,7 @@ export function MainApp() {
    */
   const isSessionHeldByOther = useMemo(() => {
     if (!auth || !activeSession) return false;
-    const ownerId = String(activeSession.mainUserId || '').toLowerCase();
+    const ownerId = String(activeSession.mainUserId || "").toLowerCase();
     if (ownerId) return ownerId !== auth.user.id.toLowerCase();
     return activeSession.mainUser !== auth.user.name;
   }, [auth, activeSession]);
@@ -3772,28 +3837,39 @@ export function MainApp() {
 
   const enqueueOutbox = useCallback(
     (action: string, payload: Record<string, any>) => {
-      const nextPayload: Record<string, any> = { ...payload, sessionEpoch: sessionEpoch || undefined };
+      const nextPayload: Record<string, any> = {
+        ...payload,
+        sessionEpoch: sessionEpoch || undefined,
+      };
       const item: OutboxItem = {
         qid: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         action,
         payload: nextPayload,
         createdAt: Date.now(),
         attempts: 0,
-        paused: false
+        paused: false,
       };
-      setOutbox(prev => {
-        if (action === 'saveBM13Data') {
-          const firstActiveIdx = flushingRef.current ? prev.findIndex(x => !x.paused) : -1;
+      setOutbox((prev) => {
+        if (action === "saveBM13Data") {
+          const firstActiveIdx = flushingRef.current
+            ? prev.findIndex((x) => !x.paused)
+            : -1;
           for (let i = prev.length - 1; i >= 0; i--) {
             if (i === firstActiveIdx) continue;
             const ob = prev[i];
             if (
-              ob.action === 'saveBM13Data' &&
+              ob.action === "saveBM13Data" &&
               ob.payload.ngayBC === nextPayload.ngayBC &&
               Number(ob.payload.caTruc) === Number(nextPayload.caTruc)
             ) {
               const next = [...prev];
-              next[i] = { ...ob, payload: nextPayload, paused: false, attempts: 0, lastError: undefined };
+              next[i] = {
+                ...ob,
+                payload: nextPayload,
+                paused: false,
+                attempts: 0,
+                lastError: undefined,
+              };
               outboxRef.current = next;
               return next;
             }
@@ -3815,10 +3891,10 @@ export function MainApp() {
       setIsSyncing(true);
       const res = await rpcCall(
         apiUrl,
-        'getInitData',
+        "getInitData",
         {
-          knownVersion: forceFull ? '' : dataVersion,
-          targetDate: targetDateOverride || selectedDate
+          knownVersion: forceFull ? "" : dataVersion,
+          targetDate: targetDateOverride || selectedDate,
         },
         auth.token
       );
@@ -3830,9 +3906,12 @@ export function MainApp() {
       }
       setIsOnline(true);
 
-      if (res.body.status !== 'success') {
-        if (res.body.code === 'AUTH') {
-          notify('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại (dữ liệu chưa đồng bộ vẫn được giữ an toàn).', 'error');
+      if (res.body.status !== "success") {
+        if (res.body.code === "AUTH") {
+          notify(
+            "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại (dữ liệu chưa đồng bộ vẫn được giữ an toàn).",
+            "error"
+          );
           setAuth(null);
         }
         return;
@@ -3842,7 +3921,7 @@ export function MainApp() {
         setActiveSession(res.body.activeSession || null);
       }
       if (res.body.mustChange) {
-        setAuth(prev => (prev ? { ...prev, mustChange: true } : prev));
+        setAuth((prev) => (prev ? { ...prev, mustChange: true } : prev));
         return;
       }
       if (res.body.unchanged) {
@@ -3851,7 +3930,10 @@ export function MainApp() {
 
       if (flushingRef.current) return;
 
-      if (Array.isArray(res.body.testsConfig) && res.body.testsConfig.length > 0) {
+      if (
+        Array.isArray(res.body.testsConfig) &&
+        res.body.testsConfig.length > 0
+      ) {
         setTestsConfig(res.body.testsConfig);
       }
 
@@ -3859,50 +3941,67 @@ export function MainApp() {
       const processedIds = new Set<string>();
       const deletedBm04Ids = new Set<string>();
       const deletedPendingIds = new Set<string>();
-      const updatedBm04Map = new Map<string, { docChung?: DocChungValue; ketQua?: string }>();
+      const updatedBm04Map = new Map<
+        string,
+        { docChung?: DocChungValue; ketQua?: string }
+      >();
 
-      outboxRef.current.forEach(ob => {
-        if (ob.action === 'addPending' && Array.isArray(ob.payload.items)) {
-          ob.payload.items.forEach((x: any) => { if (x?.id) pendingAddIds.add(x.id); });
-        } else if (ob.action === 'processPending' && ob.payload.data?.id) {
+      outboxRef.current.forEach((ob) => {
+        if (ob.action === "addPending" && Array.isArray(ob.payload.items)) {
+          ob.payload.items.forEach((x: any) => {
+            if (x?.id) pendingAddIds.add(x.id);
+          });
+        } else if (ob.action === "processPending" && ob.payload.data?.id) {
           processedIds.add(ob.payload.data.id);
           deletedPendingIds.add(ob.payload.data.id);
-        } else if (ob.action === 'deleteBM04' && ob.payload.id) {
+        } else if (ob.action === "deleteBM04" && ob.payload.id) {
           deletedBm04Ids.add(ob.payload.id);
-        } else if (ob.action === 'deletePending' && ob.payload.id) {
+        } else if (ob.action === "deletePending" && ob.payload.id) {
           deletedPendingIds.add(ob.payload.id);
-        } else if (ob.action === 'updateBM04' && ob.payload.id) {
+        } else if (ob.action === "updateBM04" && ob.payload.id) {
           updatedBm04Map.set(ob.payload.id, {
             docChung: ob.payload.docChung,
-            ketQua: ob.payload.ketQua
+            ketQua: ob.payload.ketQua,
           });
         }
       });
 
       if (Array.isArray(res.body.bm04)) {
-        setBm04Logs(prev => {
+        setBm04Logs((prev) => {
           const serverList: QueueItem[] = (res.body.bm04 as QueueItem[])
-            .filter(x => !deletedBm04Ids.has(x.id))
-            .map(x => {
+            .filter((x) => !deletedBm04Ids.has(x.id))
+            .map((x) => {
               const up = updatedBm04Map.get(x.id);
-              return up ? { ...x, docChung: up.docChung || x.docChung, ketQua: up.ketQua ?? x.ketQua } : x;
+              return up
+                ? {
+                    ...x,
+                    docChung: up.docChung || x.docChung,
+                    ketQua: up.ketQua ?? x.ketQua,
+                  }
+                : x;
             });
-          const serverIds = new Set(serverList.map(x => x.id));
+          const serverIds = new Set(serverList.map((x) => x.id));
           const localUnsynced = prev.filter(
-            x => processedIds.has(x.id) && !serverIds.has(x.id) && !deletedBm04Ids.has(x.id)
+            (x) =>
+              processedIds.has(x.id) &&
+              !serverIds.has(x.id) &&
+              !deletedBm04Ids.has(x.id)
           );
           return [...localUnsynced, ...serverList];
         });
       }
 
       if (Array.isArray(res.body.pendingQueue)) {
-        setPendingQueue(prev => {
-          const serverList: QueueItem[] = (res.body.pendingQueue as QueueItem[]).filter(
-            x => !deletedPendingIds.has(x.id)
-          );
-          const serverIds = new Set(serverList.map(x => x.id));
+        setPendingQueue((prev) => {
+          const serverList: QueueItem[] = (
+            res.body.pendingQueue as QueueItem[]
+          ).filter((x) => !deletedPendingIds.has(x.id));
+          const serverIds = new Set(serverList.map((x) => x.id));
           const localUnsynced = prev.filter(
-            x => pendingAddIds.has(x.id) && !serverIds.has(x.id) && !deletedPendingIds.has(x.id)
+            (x) =>
+              pendingAddIds.has(x.id) &&
+              !serverIds.has(x.id) &&
+              !deletedPendingIds.has(x.id)
           );
           return [...serverList, ...localUnsynced];
         });
@@ -3931,54 +4030,65 @@ export function MainApp() {
       setPendingQueue,
       setBm13Raw,
       setDirtyBm13,
-      setDataVersion
+      setDataVersion,
     ]
   );
 
   const flushOutbox = useCallback(
     async (unpauseAll = false) => {
-      if (!auth || auth.mustChange || isLockedByOtherUser || flushingRef.current) return;
+      if (
+        !auth ||
+        auth.mustChange ||
+        isLockedByOtherUser ||
+        flushingRef.current
+      )
+        return;
       if (unpauseAll) {
-        const unpaused = outboxRef.current.map(item => ({
+        const unpaused = outboxRef.current.map((item) => ({
           ...item,
           paused: false,
           attempts: 0,
-          lastError: undefined
+          lastError: undefined,
         }));
         setOutbox(unpaused);
         outboxRef.current = unpaused;
       }
 
-      if (!outboxRef.current.some(x => !x.paused)) return;
+      if (!outboxRef.current.some((x) => !x.paused)) return;
 
       flushingRef.current = true;
       let changedVersion = false;
 
       try {
         while (true) {
-          const item = outboxRef.current.find(x => !x.paused);
+          const item = outboxRef.current.find((x) => !x.paused);
           if (!item) break;
 
           const payloadWithEpoch = {
             ...item.payload,
-            sessionEpoch: sessionEpoch || item.payload.sessionEpoch
+            sessionEpoch: sessionEpoch || item.payload.sessionEpoch,
           };
-          const res = await rpcCall(apiUrl, item.action, payloadWithEpoch, auth.token);
+          const res = await rpcCall(
+            apiUrl,
+            item.action,
+            payloadWithEpoch,
+            auth.token
+          );
 
           if (!res.net) {
             setIsOnline(false);
             const nextAttempts = (item.attempts || 0) + 1;
             const shouldPause = nextAttempts >= 8;
-            setOutbox(prev => {
-              const next = prev.map(x =>
+            setOutbox((prev) => {
+              const next = prev.map((x) =>
                 x.qid === item.qid
                   ? {
                       ...x,
                       attempts: nextAttempts,
                       paused: shouldPause,
                       lastError: shouldPause
-                        ? 'Tạm dừng sau 8 lần mất mạng. Bấm nút Đồng bộ trên Header để gửi lại.'
-                        : 'Đang chờ mạng ổn định...'
+                        ? "Tạm dừng sau 8 lần mất mạng. Bấm nút Đồng bộ trên Header để gửi lại."
+                        : "Đang chờ mạng ổn định...",
                     }
                   : x
               );
@@ -3990,13 +4100,13 @@ export function MainApp() {
 
           setIsOnline(true);
 
-          if (res.body.status === 'success') {
+          if (res.body.status === "success") {
             if (res.body.version) {
               changedVersion = true;
               setDataVersion(String(res.body.version));
             }
-            setOutbox(prev => {
-              const next = prev.filter(x => x.qid !== item.qid);
+            setOutbox((prev) => {
+              const next = prev.filter((x) => x.qid !== item.qid);
               outboxRef.current = next;
               return next;
             });
@@ -4007,36 +4117,55 @@ export function MainApp() {
             setActiveSession(res.body.activeSession);
           }
 
-          const code = String(res.body.code || '');
-          if (code === 'AUTH' || code === 'MUST_CHANGE' || code === 'SESSION_LOCKED' || code === 'SESSION_SUPERSEDED') {
-            setOutbox(prev => {
-              const next = prev.map(x =>
+          const code = String(res.body.code || "");
+          if (
+            code === "AUTH" ||
+            code === "MUST_CHANGE" ||
+            code === "SESSION_LOCKED" ||
+            code === "SESSION_SUPERSEDED"
+          ) {
+            setOutbox((prev) => {
+              const next = prev.map((x) =>
                 x.qid === item.qid
-                  ? { ...x, paused: true, lastError: res.body.message || 'Phiên bị khóa hoặc cần đăng nhập lại.' }
+                  ? {
+                      ...x,
+                      paused: true,
+                      lastError:
+                        res.body.message ||
+                        "Phiên bị khóa hoặc cần đăng nhập lại.",
+                    }
                   : x
               );
               outboxRef.current = next;
               return next;
             });
-            if (code === 'AUTH') {
-              notify('Phiên đăng nhập hết hạn. Dữ liệu vừa nhập vẫn được giữ trong Hàng đợi, vui lòng đăng nhập lại!', 'error');
+            if (code === "AUTH") {
+              notify(
+                "Phiên đăng nhập hết hạn. Dữ liệu vừa nhập vẫn được giữ trong Hàng đợi, vui lòng đăng nhập lại!",
+                "error"
+              );
               setAuth(null);
             } else {
-              notify(res.body.message || 'Bạn đang ở chế độ Chỉ xem, không thể ghi dữ liệu.', 'error');
+              notify(
+                res.body.message ||
+                  "Bạn đang ở chế độ Chỉ xem, không thể ghi dữ liệu.",
+                "error"
+              );
             }
             break;
           }
 
-          if (res.body.retry || code === 'BUSY' || code === 'SERVER') {
+          if (res.body.retry || code === "BUSY" || code === "SERVER") {
             const nextAttempts = (item.attempts || 0) + 1;
-            setOutbox(prev => {
-              const next = prev.map(x =>
+            setOutbox((prev) => {
+              const next = prev.map((x) =>
                 x.qid === item.qid
                   ? {
                       ...x,
                       attempts: nextAttempts,
                       paused: nextAttempts >= 8,
-                      lastError: res.body.message || 'Máy chủ đang bận, chờ thử lại...'
+                      lastError:
+                        res.body.message || "Máy chủ đang bận, chờ thử lại...",
                     }
                   : x
               );
@@ -4046,11 +4175,19 @@ export function MainApp() {
             break;
           }
 
-          notify(res.body.message || `Thao tác [${item.action}] bị từ chối bởi máy chủ.`, 'error');
-          setOutbox(prev => {
-            const next = prev.map(x =>
+          notify(
+            res.body.message ||
+              `Thao tác [${item.action}] bị từ chối bởi máy chủ.`,
+            "error"
+          );
+          setOutbox((prev) => {
+            const next = prev.map((x) =>
               x.qid === item.qid
-                ? { ...x, paused: true, lastError: res.body.message || 'Máy chủ từ chối thao tác.' }
+                ? {
+                    ...x,
+                    paused: true,
+                    lastError: res.body.message || "Máy chủ từ chối thao tác.",
+                  }
                 : x
             );
             outboxRef.current = next;
@@ -4061,11 +4198,21 @@ export function MainApp() {
         flushingRef.current = false;
       }
 
-      if (changedVersion && !outboxRef.current.some(x => !x.paused)) {
+      if (changedVersion && !outboxRef.current.some((x) => !x.paused)) {
         syncFromCloud(true);
       }
     },
-    [auth, isLockedByOtherUser, apiUrl, sessionEpoch, notify, setAuth, setOutbox, setDataVersion, syncFromCloud]
+    [
+      auth,
+      isLockedByOtherUser,
+      apiUrl,
+      sessionEpoch,
+      notify,
+      setAuth,
+      setOutbox,
+      setDataVersion,
+      syncFromCloud,
+    ]
   );
 
   useEffect(() => {
@@ -4093,27 +4240,33 @@ export function MainApp() {
       if (!auth || auth.mustChange) return;
       const res = await rpcCall(
         apiUrl,
-        'pingSession',
+        "pingSession",
         {
           date: selectedDate,
           shift: viewShift,
-          checkerUser: checker?.name || '',
-          force: forceTakeover
+          checkerUser: checker?.name || "",
+          force: forceTakeover,
         },
         auth.token
       );
-      if (res.net && res.body.status === 'success' && res.body.activeSession) {
+      if (res.net && res.body.status === "success" && res.body.activeSession) {
         setActiveSession(res.body.activeSession);
         if (res.body.activeSession.epoch) {
           setSessionEpoch(String(res.body.activeSession.epoch));
         }
         if (forceTakeover) {
-          notify(`Đã tiếp quản phiên làm việc thành công! Bạn đang giữ phiên chính thức.`, 'success');
+          notify(
+            `Đã tiếp quản phiên làm việc thành công! Bạn đang giữ phiên chính thức.`,
+            "success"
+          );
         }
       } else if (res.net && res.body.activeSession) {
         setActiveSession(res.body.activeSession);
         if (forceTakeover) {
-          notify(res.body.message || 'Chưa thể tiếp quản phiên làm việc.', 'error');
+          notify(
+            res.body.message || "Chưa thể tiếp quản phiên làm việc.",
+            "error"
+          );
         }
       }
     },
@@ -4132,29 +4285,37 @@ export function MainApp() {
       pingCurrentSession(false);
     }, 28000);
     return () => window.clearInterval(t);
-  }, [auth?.token, auth?.mustChange, isSessionHeldByOther, selectedDate, viewShift, checker?.name, pingCurrentSession]);
+  }, [
+    auth?.token,
+    auth?.mustChange,
+    isSessionHeldByOther,
+    selectedDate,
+    viewShift,
+    checker?.name,
+    pingCurrentSession,
+  ]);
 
   /* ==================== CÁC HÀM THAO TÁC ĐỒNG HỒ ĐẾM NGƯỢC ==================== */
 
   const handleStartTimer = (itemId: string, minutes: TimerPresetMinutes) => {
     const now = Date.now();
     delete beepedTimerMarksRef.current[itemId];
-    setTimers(prev => ({
+    setTimers((prev) => ({
       ...prev,
       [itemId]: {
         startAt: now,
         durationMs: minutes * 60 * 1000,
-        presetMin: minutes
-      }
+        presetMin: minutes,
+      },
     }));
     setTimerNowMs(now);
     setOpenTimerMenuId(null);
-    notify(`Đã bật đồng hồ đếm ngược ${minutes} phút.`, 'info');
+    notify(`Đã bật đồng hồ đếm ngược ${minutes} phút.`, "info");
   };
 
   const handleCancelTimer = (itemId: string) => {
     delete beepedTimerMarksRef.current[itemId];
-    setTimers(prev => {
+    setTimers((prev) => {
       const next = { ...prev };
       delete next[itemId];
       return next;
@@ -4165,23 +4326,38 @@ export function MainApp() {
   /* ==================== CÁC HÀM THAO TÁC NGHIỆP VỤ BM.04 ==================== */
 
   const handoverLockReason = useMemo(() => {
-    if (isAdmin) return '';
+    if (isAdmin) return "";
     if (yesterdayCa4PendingBlock && selectedDate === todayStr) {
-      return `Ca 4 ngày hôm qua (${formatDateDisplay(yesterdayCa4PendingBlock.date)}) chưa hoàn tất bàn giao. Vui lòng sang Tab 2 "Kho Hóa Chất (BM.13)" để Chốt/Nhận bàn giao trước khi thao tác ngày mới!`;
+      return `Ca 4 ngày hôm qua (${formatDateDisplay(
+        yesterdayCa4PendingBlock.date
+      )}) chưa hoàn tất bàn giao. Vui lòng sang Tab 2 "Kho Hóa Chất (BM.13)" để Chốt/Nhận bàn giao trước khi thao tác ngày mới!`;
     }
     if (currentShiftHandoverBlock) {
-      return `Ca ${currentShiftHandoverBlock.shift} ngày ${formatDateDisplay(currentShiftHandoverBlock.date)} đã chốt giao bởi [${currentShiftHandoverBlock.nguoiGiao}] và đang chờ ký nhận. Vui lòng sang Tab 2 để Nhận bàn giao trước khi làm việc tiếp!`;
+      return `Ca ${currentShiftHandoverBlock.shift} ngày ${formatDateDisplay(
+        currentShiftHandoverBlock.date
+      )} đã chốt giao bởi [${
+        currentShiftHandoverBlock.nguoiGiao
+      }] và đang chờ ký nhận. Vui lòng sang Tab 2 để Nhận bàn giao trước khi làm việc tiếp!`;
     }
-    return '';
-  }, [isAdmin, yesterdayCa4PendingBlock, selectedDate, todayStr, currentShiftHandoverBlock]);
+    return "";
+  }, [
+    isAdmin,
+    yesterdayCa4PendingBlock,
+    selectedDate,
+    todayStr,
+    currentShiftHandoverBlock,
+  ]);
 
   const handleToggleTestCode = (code: string) => {
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên. Bấm "Tiếp quản phiên" nếu muốn thao tác.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên. Bấm "Tiếp quản phiên" nếu muốn thao tác.`,
+        "error"
+      );
       return;
     }
-    setSelectedTestCodes(prev =>
-      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    setSelectedTestCodes((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
     );
   };
 
@@ -4190,20 +4366,34 @@ export function MainApp() {
     if (!auth) return;
 
     if (isLockedByOtherUser) {
-      notify(`Hệ thống đang được giữ phiên bởi ${activeSession?.mainUser}. Bạn đang ở chế độ Chỉ xem!`, 'error');
+      notify(
+        `Hệ thống đang được giữ phiên bởi ${activeSession?.mainUser}. Bạn đang ở chế độ Chỉ xem!`,
+        "error"
+      );
       return;
     }
     if (handoverLockReason) {
-      notify(handoverLockReason, 'error');
-      setActiveTab('BM13');
+      notify(handoverLockReason, "error");
+      setActiveTab("BM13");
       return;
     }
     if (isShiftClosed(selectedDate, viewShift) && !isAdmin) {
-      notify(`Ca ${viewShift} ngày ${formatDateDisplay(selectedDate)} đã chốt bàn giao, không thể thêm bệnh nhân mới.`, 'error');
+      notify(
+        `Ca ${viewShift} ngày ${formatDateDisplay(
+          selectedDate
+        )} đã chốt bàn giao, không thể thêm bệnh nhân mới.`,
+        "error"
+      );
       return;
     }
-    if (!checker || checker.verifiedForUserId.toLowerCase() !== auth.user.id.toLowerCase()) {
-      notify('Vui lòng xác thực Người kiểm tra trước khi đẩy bệnh nhân vào hàng đợi!', 'error');
+    if (
+      !checker ||
+      checker.verifiedForUserId.toLowerCase() !== auth.user.id.toLowerCase()
+    ) {
+      notify(
+        "Vui lòng xác thực Người kiểm tra trước khi đẩy bệnh nhân vào hàng đợi!",
+        "error"
+      );
       setShowCheckerModal(true);
       return;
     }
@@ -4215,94 +4405,131 @@ export function MainApp() {
     const yearNum = Number(cleanYear);
 
     if (!cleanName) {
-      notify('Vui lòng nhập Họ và tên bệnh nhân.', 'error');
+      notify("Vui lòng nhập Họ và tên bệnh nhân.", "error");
       return;
     }
     if (isAgeMode) {
-      if (!cleanYear || !Number.isInteger(yearNum) || yearNum < 1 || yearNum > 130) {
-        notify('Tuổi không hợp lệ (Vui lòng nhập số nguyên từ 1 đến 130).', 'error');
+      if (
+        !cleanYear ||
+        !Number.isInteger(yearNum) ||
+        yearNum < 1 ||
+        yearNum > 130
+      ) {
+        notify(
+          "Tuổi không hợp lệ (Vui lòng nhập số nguyên từ 1 đến 130).",
+          "error"
+        );
         return;
       }
     } else {
-      if (!cleanYear || !Number.isInteger(yearNum) || yearNum < 1900 || yearNum > currentYear) {
-        notify(`Năm sinh không hợp lệ (1900 - ${currentYear}). Nếu muốn nhập tuổi, hãy tích vào ô "Tuổi".`, 'error');
+      if (
+        !cleanYear ||
+        !Number.isInteger(yearNum) ||
+        yearNum < 1900 ||
+        yearNum > currentYear
+      ) {
+        notify(
+          `Năm sinh không hợp lệ (1900 - ${currentYear}). Nếu muốn nhập tuổi, hãy tích vào ô "Tuổi".`,
+          "error"
+        );
         return;
       }
     }
     if (!cleanBc) {
-      notify('Vui lòng nhập Barcode bệnh nhân.', 'error');
+      notify("Vui lòng nhập Barcode bệnh nhân.", "error");
       return;
     }
     if (selectedTestCodes.length === 0) {
-      notify('Vui lòng tích chọn ít nhất 1 xét nghiệm.', 'error');
+      notify("Vui lòng tích chọn ít nhất 1 xét nghiệm.", "error");
       return;
     }
 
     const catalogMap: Record<string, string> = {};
-    testsConfig.forEach(t => { catalogMap[t.code] = t.name; });
+    testsConfig.forEach((t) => {
+      catalogMap[t.code] = t.name;
+    });
 
     const nowIso = getTrustedNow().toISOString();
     const newItems: QueueItem[] = selectedTestCodes.map((code, idx) => {
       const upperCode = code.trim().toUpperCase();
       return {
-        id: `REC_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+        id: `REC_${Date.now()}_${idx}_${Math.random()
+          .toString(36)
+          .slice(2, 7)}`,
         ngayBC: selectedDate,
         caTruc: viewShift,
         tenXetNghiem: catalogMap[upperCode] || upperCode,
         maTest: upperCode,
         hoTenBN: cleanName,
-        namSinhNam: gioiTinh === 'Nam' ? cleanYear : '',
-        namSinhNu: gioiTinh === 'Nu' ? cleanYear : '',
+        namSinhNam: gioiTinh === "Nam" ? cleanYear : "",
+        namSinhNu: gioiTinh === "Nu" ? cleanYear : "",
         isAgeMode,
         barcode: cleanBc,
         docChung: docChungDefault,
         nguoiThucHien: auth.user.name,
         nguoiKiemTra: checker.name,
-        timestamp: nowIso
+        timestamp: nowIso,
       };
     });
 
-    setPendingQueue(prev => [...prev, ...newItems]);
-    setDrafts(prev => {
+    setPendingQueue((prev) => [...prev, ...newItems]);
+    setDrafts((prev) => {
       const next = { ...prev };
-      newItems.forEach(it => {
-        next[it.id] = { docChung: it.docChung, ketQua: '' };
+      newItems.forEach((it) => {
+        next[it.id] = { docChung: it.docChung, ketQua: "" };
       });
       return next;
     });
 
-    enqueueOutbox('addPending', {
+    enqueueOutbox("addPending", {
       items: newItems,
-      checkerProof: checker.proof
+      checkerProof: checker.proof,
     });
 
     // CẢI TIẾN 2: Xóa trắng Form và tự động trả dấu tick [✓] Tuổi về mặc định (Năm sinh)
-    setHoTenBN('');
-    setNamSinh('');
+    setHoTenBN("");
+    setNamSinh("");
     setIsAgeMode(false);
-    setBarcode('');
+    setBarcode("");
     setSelectedTestCodes([]);
-    notify(`Đã đẩy ${newItems.length} xét nghiệm vào Hàng đợi (Ca ${viewShift}).`, 'success');
+    notify(
+      `Đã đẩy ${newItems.length} xét nghiệm vào Hàng đợi (Ca ${viewShift}).`,
+      "success"
+    );
   };
 
-  const handleSaveResultFromQueue = (item: QueueItem, rawKetQuaOverride?: string, docChungOverride?: DocChungValue) => {
+  const handleSaveResultFromQueue = (
+    item: QueueItem,
+    rawKetQuaOverride?: string,
+    docChungOverride?: DocChungValue
+  ) => {
     if (!auth) return;
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
       return;
     }
     if (isShiftClosed(item.ngayBC, item.caTruc) && !isAdmin) {
-      notify(`Ca ${item.caTruc} ngày ${formatDateDisplay(item.ngayBC)} đã chốt, không thể lưu kết quả mới.`, 'error');
+      notify(
+        `Ca ${item.caTruc} ngày ${formatDateDisplay(
+          item.ngayBC
+        )} đã chốt, không thể lưu kết quả mới.`,
+        "error"
+      );
       return;
     }
 
-    const draft = drafts[item.id] || { docChung: item.docChung, ketQua: '' };
-    const rawKq = rawKetQuaOverride !== undefined ? rawKetQuaOverride : draft.ketQua;
-    const finalDocChung = docChungOverride !== undefined ? docChungOverride : draft.docChung;
+    const draft = drafts[item.id] || { docChung: item.docChung, ketQua: "" };
+    const rawKq =
+      rawKetQuaOverride !== undefined ? rawKetQuaOverride : draft.ketQua;
+    const finalDocChung =
+      docChungOverride !== undefined ? docChungOverride : draft.docChung;
 
     const check = validateAndNormalizeMulti(item.maTest, rawKq);
     if (!check.ok) {
-      notify(check.error, 'error');
+      notify(check.error, "error");
       return;
     }
 
@@ -4311,54 +4538,68 @@ export function MainApp() {
       docChung: finalDocChung,
       ketQua: check.normalized,
       thoiGianDocKQ: formatVnTimeNow(),
-      lanSuaCuoi: ''
+      lanSuaCuoi: "",
     };
 
     delete beepedTimerMarksRef.current[item.id];
-    setPendingQueue(prev => prev.filter(p => p.id !== item.id));
-    setBm04Logs(prev => [completedRecord, ...prev.filter(x => x.id !== item.id)]);
-    setDrafts(prev => {
+    setPendingQueue((prev) => prev.filter((p) => p.id !== item.id));
+    setBm04Logs((prev) => [
+      completedRecord,
+      ...prev.filter((x) => x.id !== item.id),
+    ]);
+    setDrafts((prev) => {
       const next = { ...prev };
       delete next[item.id];
       return next;
     });
-    setTimers(prev => {
+    setTimers((prev) => {
       if (!prev[item.id]) return prev;
       const next = { ...prev };
       delete next[item.id];
       return next;
     });
 
-    enqueueOutbox('processPending', {
+    enqueueOutbox("processPending", {
       data: completedRecord,
-      checkerProof: checker?.proof || ''
+      checkerProof: checker?.proof || "",
     });
 
-    notify(`Đã lưu kết quả [${item.tenXetNghiem}] cho BN ${item.hoTenBN}.`, 'success');
+    notify(
+      `Đã lưu kết quả [${item.tenXetNghiem}] cho BN ${item.hoTenBN}.`,
+      "success"
+    );
   };
 
-  const handleUpdateBM04Result = async (id: string, nextDocChung: DocChungValue, nextKetQua: string) => {
+  const handleUpdateBM04Result = async (
+    id: string,
+    nextDocChung: DocChungValue,
+    nextKetQua: string
+  ) => {
     if (!auth) return;
     if (isLockedByOtherUser) {
-      throw new Error(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`);
+      throw new Error(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`
+      );
     }
-    const target = bm04Logs.find(x => x.id === id);
+    const target = bm04Logs.find((x) => x.id === id);
     if (!target) return;
 
     if (!canUserModifyRecord(target)) {
-      throw new Error('Ca trực đã chốt hoặc bạn không có quyền sửa bản ghi này (Chỉ Admin mới sửa được sau khi chốt ca).');
+      throw new Error(
+        "Ca trực đã chốt hoặc bạn không có quyền sửa bản ghi này (Chỉ Admin mới sửa được sau khi chốt ca)."
+      );
     }
 
     const stamp = `${formatVnTimeNow()} (${auth.user.name})`;
 
-    setBm04Logs(prev =>
-      prev.map(x =>
+    setBm04Logs((prev) =>
+      prev.map((x) =>
         x.id === id
           ? {
               ...x,
               docChung: nextDocChung,
               ketQua: nextKetQua,
-              lanSuaCuoi: stamp
+              lanSuaCuoi: stamp,
             }
           : x
       )
@@ -4366,197 +4607,287 @@ export function MainApp() {
 
     const res = await rpcCall(
       apiUrl,
-      'updateBM04',
+      "updateBM04",
       {
         id,
         docChung: nextDocChung,
         ketQua: nextKetQua,
-        sessionEpoch: sessionEpoch || undefined
+        sessionEpoch: sessionEpoch || undefined,
       },
       auth.token
     );
 
     if (!res.net) {
-      enqueueOutbox('updateBM04', { id, docChung: nextDocChung, ketQua: nextKetQua });
-      notify('Đã cập nhật kết quả trên máy (sẽ tự đồng bộ lên Cloud khi có mạng).', 'info');
+      enqueueOutbox("updateBM04", {
+        id,
+        docChung: nextDocChung,
+        ketQua: nextKetQua,
+      });
+      notify(
+        "Đã cập nhật kết quả trên máy (sẽ tự đồng bộ lên Cloud khi có mạng).",
+        "info"
+      );
       return;
     }
 
-    if (res.body.status !== 'success') {
+    if (res.body.status !== "success") {
       if (res.body.activeSession) setActiveSession(res.body.activeSession);
-      setBm04Logs(prev => prev.map(x => (x.id === id ? target : x)));
-      throw new Error(res.body.message || 'Máy chủ từ chối cập nhật kết quả.');
+      setBm04Logs((prev) => prev.map((x) => (x.id === id ? target : x)));
+      throw new Error(res.body.message || "Máy chủ từ chối cập nhật kết quả.");
     }
 
     if (res.body.version) setDataVersion(String(res.body.version));
-    notify(`Đã cập nhật kết quả [${target.tenXetNghiem}] (Giữ nguyên giờ trả KQ: ${target.thoiGianDocKQ}).`, 'success');
+    notify(
+      `Đã cập nhật kết quả [${target.tenXetNghiem}] (Giữ nguyên giờ trả KQ: ${target.thoiGianDocKQ}).`,
+      "success"
+    );
   };
 
   const handleDeletePendingItem = (item: QueueItem) => {
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
       return;
     }
     if (!canUserModifyRecord(item)) {
-      notify('Bạn chỉ được xóa xét nghiệm chờ do chính mình tạo trong ca đang mở.', 'error');
+      notify(
+        "Bạn chỉ được xóa xét nghiệm chờ do chính mình tạo trong ca đang mở.",
+        "error"
+      );
       return;
     }
-    if (!window.confirm(`Hủy xét nghiệm chờ [${item.tenXetNghiem}] của BN ${item.hoTenBN} (Ca ${item.caTruc} - ${formatDateDisplay(item.ngayBC)})?`)) {
+    if (
+      !window.confirm(
+        `Hủy xét nghiệm chờ [${item.tenXetNghiem}] của BN ${item.hoTenBN} (Ca ${
+          item.caTruc
+        } - ${formatDateDisplay(item.ngayBC)})?`
+      )
+    ) {
       return;
     }
     delete beepedTimerMarksRef.current[item.id];
-    setPendingQueue(prev => prev.filter(x => x.id !== item.id));
-    setTimers(prev => {
+    setPendingQueue((prev) => prev.filter((x) => x.id !== item.id));
+    setTimers((prev) => {
       if (!prev[item.id]) return prev;
       const next = { ...prev };
       delete next[item.id];
       return next;
     });
-    enqueueOutbox('deletePending', { id: item.id });
-    notify(`Đã xóa xét nghiệm chờ [${item.tenXetNghiem}].`, 'info');
+    enqueueOutbox("deletePending", { id: item.id });
+    notify(`Đã xóa xét nghiệm chờ [${item.tenXetNghiem}].`, "info");
   };
 
   const handleDeleteBM04Item = (item: QueueItem) => {
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
       return;
     }
     if (!canUserModifyRecord(item)) {
-      notify('Ca trực đã chốt hoặc bạn không có quyền xóa kết quả này.', 'error');
+      notify(
+        "Ca trực đã chốt hoặc bạn không có quyền xóa kết quả này.",
+        "error"
+      );
       return;
     }
-    if (!window.confirm(`Xóa kết quả [${item.tenXetNghiem}] của BN ${item.hoTenBN} khỏi Sổ BM.04? (Thao tác sẽ được ghi vào Sổ kiểm toán AUDIT_LOGS)`)) {
+    if (
+      !window.confirm(
+        `Xóa kết quả [${item.tenXetNghiem}] của BN ${item.hoTenBN} khỏi Sổ BM.04? (Thao tác sẽ được ghi vào Sổ kiểm toán AUDIT_LOGS)`
+      )
+    ) {
       return;
     }
-    setBm04Logs(prev => prev.filter(x => x.id !== item.id));
-    enqueueOutbox('deleteBM04', { id: item.id });
-    notify(`Đã xóa kết quả [${item.tenXetNghiem}] của BN ${item.hoTenBN}.`, 'info');
+    setBm04Logs((prev) => prev.filter((x) => x.id !== item.id));
+    enqueueOutbox("deleteBM04", { id: item.id });
+    notify(
+      `Đã xóa kết quả [${item.tenXetNghiem}] của BN ${item.hoTenBN}.`,
+      "info"
+    );
   };
 
   /* ==================== CÁC HÀM THAO TÁC TỒN KHO & BÀN GIAO BM.13 ==================== */
 
-  const handleUpdateShiftCell = (shift: ShiftNumber, code: string, field: 'boiHoan' | 'suDungQC', rawVal: any) => {
+  const handleUpdateShiftCell = (
+    shift: ShiftNumber,
+    code: string,
+    field: "boiHoan" | "suDungQC",
+    rawVal: any
+  ) => {
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
       return;
     }
     if (!isStockTestCode(code)) return;
     if (isShiftClosed(selectedDate, shift) && !isAdmin) {
-      notify(`Ca ${shift} đã chốt bàn giao, không thể sửa số liệu.`, 'error');
+      notify(`Ca ${shift} đã chốt bàn giao, không thể sửa số liệu.`, "error");
       return;
     }
     const val = clampInt(rawVal, 0, 99999);
     const key = `${selectedDate}_CA${shift}`;
     const existingShiftCells = currentDayComputed.shifts[shift] || {};
-    const nextCellsPayload: Record<string, { boiHoan: number; suDungQC: number }> = {};
+    const nextCellsPayload: Record<
+      string,
+      { boiHoan: number; suDungQC: number }
+    > = {};
 
-    currentDayComputed.tests.forEach(t => {
+    currentDayComputed.tests.forEach((t) => {
       if (!isStockTestCode(t.code)) return;
-      const cur = existingShiftCells[t.code] || { boiHoan: 0, suDungQC: 0, suDung: 0, tonCuoi: 0 };
+      const cur = existingShiftCells[t.code] || {
+        boiHoan: 0,
+        suDungQC: 0,
+        suDung: 0,
+        tonCuoi: 0,
+      };
       nextCellsPayload[t.code] = {
-        boiHoan: t.code === code && field === 'boiHoan' ? val : cur.boiHoan,
-        suDungQC: t.code === code && field === 'suDungQC' ? val : cur.suDungQC
+        boiHoan: t.code === code && field === "boiHoan" ? val : cur.boiHoan,
+        suDungQC: t.code === code && field === "suDungQC" ? val : cur.suDungQC,
       };
     });
 
-    setDirtyBm13(prev => ({
+    setDirtyBm13((prev) => ({
       ...prev,
       [key]: {
         ...(prev[key] || {}),
-        cells: nextCellsPayload
-      }
+        cells: nextCellsPayload,
+      },
     }));
 
-    enqueueOutbox('saveBM13Data', {
+    enqueueOutbox("saveBM13Data", {
       ngayBC: selectedDate,
       caTruc: shift,
-      dataJson: JSON.stringify(nextCellsPayload)
+      dataJson: JSON.stringify(nextCellsPayload),
     });
   };
 
-  const handleApplyBulkReplenish = (shift: ShiftNumber, map: Record<string, number>) => {
+  const handleApplyBulkReplenish = (
+    shift: ShiftNumber,
+    map: Record<string, number>
+  ) => {
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
       return;
     }
     if (isShiftClosed(selectedDate, shift) && !isAdmin) {
-      notify(`Ca ${shift} đã chốt bàn giao.`, 'error');
+      notify(`Ca ${shift} đã chốt bàn giao.`, "error");
       return;
     }
     const key = `${selectedDate}_CA${shift}`;
     const existingShiftCells = currentDayComputed.shifts[shift] || {};
-    const nextCellsPayload: Record<string, { boiHoan: number; suDungQC: number }> = {};
+    const nextCellsPayload: Record<
+      string,
+      { boiHoan: number; suDungQC: number }
+    > = {};
 
-    currentDayComputed.tests.forEach(t => {
+    currentDayComputed.tests.forEach((t) => {
       if (!isStockTestCode(t.code)) return;
-      const cur = existingShiftCells[t.code] || { boiHoan: 0, suDungQC: 0, suDung: 0, tonCuoi: 0 };
+      const cur = existingShiftCells[t.code] || {
+        boiHoan: 0,
+        suDungQC: 0,
+        suDung: 0,
+        tonCuoi: 0,
+      };
       nextCellsPayload[t.code] = {
-        boiHoan: map[t.code] !== undefined ? clampInt(map[t.code], 0, 99999) : cur.boiHoan,
-        suDungQC: cur.suDungQC
+        boiHoan:
+          map[t.code] !== undefined
+            ? clampInt(map[t.code], 0, 99999)
+            : cur.boiHoan,
+        suDungQC: cur.suDungQC,
       };
     });
 
-    setDirtyBm13(prev => ({
+    setDirtyBm13((prev) => ({
       ...prev,
       [key]: {
         ...(prev[key] || {}),
-        cells: nextCellsPayload
-      }
+        cells: nextCellsPayload,
+      },
     }));
 
-    enqueueOutbox('saveBM13Data', {
+    enqueueOutbox("saveBM13Data", {
       ngayBC: selectedDate,
       caTruc: shift,
-      dataJson: JSON.stringify(nextCellsPayload)
+      dataJson: JSON.stringify(nextCellsPayload),
     });
 
-    notify(`Đã cập nhật Bồi hoàn cho Ca ${shift}.`, 'success');
+    notify(`Đã cập nhật Bồi hoàn cho Ca ${shift}.`, "success");
   };
 
-  const handleUpdateDayTonDauOrNote = (newTonDauMap?: Record<string, number>, newNote?: string) => {
+  const handleUpdateDayTonDauOrNote = (
+    newTonDauMap?: Record<string, number>,
+    newNote?: string
+  ) => {
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
       return;
     }
     const key = `${selectedDate}_DAY`;
-    const nextTonDau = newTonDauMap !== undefined ? newTonDauMap : currentDayComputed.tonDau;
-    const nextNote = newNote !== undefined ? newNote : currentDayComputed.ghiChu;
+    const nextTonDau =
+      newTonDauMap !== undefined ? newTonDauMap : currentDayComputed.tonDau;
+    const nextNote =
+      newNote !== undefined ? newNote : currentDayComputed.ghiChu;
 
-    setDirtyBm13(prev => ({
+    setDirtyBm13((prev) => ({
       ...prev,
       [key]: {
         tonDau: nextTonDau,
-        ghiChu: nextNote
-      }
+        ghiChu: nextNote,
+      },
     }));
 
-    enqueueOutbox('saveBM13Data', {
+    enqueueOutbox("saveBM13Data", {
       ngayBC: selectedDate,
       caTruc: 0,
       ghiChu: nextNote,
-      dataJson: JSON.stringify({ tonDau: nextTonDau })
+      dataJson: JSON.stringify({ tonDau: nextTonDau }),
     });
   };
 
   const handleConfirmCloseShift = async (shift: ShiftNumber) => {
     if (!auth) return;
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
       return;
     }
     const pendingOfThisShift = pendingQueue.filter(
-      p => p.ngayBC === selectedDate && Number(p.caTruc) === Number(shift)
+      (p) => p.ngayBC === selectedDate && Number(p.caTruc) === Number(shift)
     ).length;
 
     if (pendingOfThisShift > 0 && !isAdmin) {
-      notify(`Còn ${pendingOfThisShift} xét nghiệm chờ đọc kết quả ở Ca ${shift}. Vui lòng xử lý hết trước khi chốt ca!`, 'error');
+      notify(
+        `Còn ${pendingOfThisShift} xét nghiệm chờ đọc kết quả ở Ca ${shift}. Vui lòng xử lý hết trước khi chốt ca!`,
+        "error"
+      );
       return;
     }
 
-    const shiftCellsPayload: Record<string, { boiHoan: number; suDungQC: number }> = {};
-    currentDayComputed.tests.forEach(t => {
+    const shiftCellsPayload: Record<
+      string,
+      { boiHoan: number; suDungQC: number }
+    > = {};
+    currentDayComputed.tests.forEach((t) => {
       if (!isStockTestCode(t.code)) return;
-      const c = currentDayComputed.shifts[shift]?.[t.code] || { boiHoan: 0, suDungQC: 0, suDung: 0, tonCuoi: 0 };
+      const c = currentDayComputed.shifts[shift]?.[t.code] || {
+        boiHoan: 0,
+        suDungQC: 0,
+        suDung: 0,
+        tonCuoi: 0,
+      };
       shiftCellsPayload[t.code] = { boiHoan: c.boiHoan, suDungQC: c.suDungQC };
     });
 
@@ -4567,104 +4898,143 @@ export function MainApp() {
 
     const res = await rpcCall(
       apiUrl,
-      'shiftOp',
+      "shiftOp",
       {
         ngayBC: selectedDate,
         caTruc: shift,
-        op: 'close',
+        op: "close",
         gioGiao,
         shiftData: shiftCellsPayload,
-        sessionEpoch: sessionEpoch || undefined
+        sessionEpoch: sessionEpoch || undefined,
       },
       auth.token
     );
     setClosingLoading(false);
 
-    if (!res.net || res.body.status !== 'success') {
+    if (!res.net || res.body.status !== "success") {
       if (res.body.activeSession) setActiveSession(res.body.activeSession);
-      notify(res.body.message || 'Chưa thể chốt ca (Kiểm tra kết nối mạng hoặc xử lý hết hàng đợi).', 'error');
+      notify(
+        res.body.message ||
+          "Chưa thể chốt ca (Kiểm tra kết nối mạng hoặc xử lý hết hàng đợi).",
+        "error"
+      );
       return;
     }
 
     setClosingShiftModal(null);
     if (!isSessionHeldByOther) {
-      await rpcCall(apiUrl, 'clearSession', {}, auth.token);
+      await rpcCall(apiUrl, "clearSession", {}, auth.token);
     }
     setChecker(null);
     setAuth(null);
-    notify(`Đã chốt bàn giao Ca ${shift} thành công và đăng xuất an toàn.`, 'success');
+    notify(
+      `Đã chốt bàn giao Ca ${shift} thành công và đăng xuất an toàn.`,
+      "success"
+    );
   };
 
-  const handleReceiveShiftHandover = async (targetDate: string, shift: ShiftNumber) => {
+  const handleReceiveShiftHandover = async (
+    targetDate: string,
+    shift: ShiftNumber
+  ) => {
     if (!auth) return;
     if (isLockedByOtherUser) {
-      notify(`Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên. Bấm "Tiếp quản phiên" trước khi ký nhận ca.`, 'error');
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên. Bấm "Tiếp quản phiên" trước khi ký nhận ca.`,
+        "error"
+      );
       return;
     }
     const res = await rpcCall(
       apiUrl,
-      'shiftOp',
+      "shiftOp",
       {
         ngayBC: targetDate,
         caTruc: shift,
-        op: 'receive',
-        sessionEpoch: sessionEpoch || undefined
+        op: "receive",
+        sessionEpoch: sessionEpoch || undefined,
       },
       auth.token
     );
 
-    if (!res.net || res.body.status !== 'success') {
+    if (!res.net || res.body.status !== "success") {
       if (res.body.activeSession) setActiveSession(res.body.activeSession);
-      notify(res.body.message || 'Không thể ký nhận bàn giao ca. Vui lòng thử lại.', 'error');
+      notify(
+        res.body.message || "Không thể ký nhận bàn giao ca. Vui lòng thử lại.",
+        "error"
+      );
       return;
     }
 
     setAdminShiftOverride(null);
     await syncFromCloud(true, selectedDate);
-    notify(`Đã ký nhận bàn giao Ca ${shift} ngày ${formatDateDisplay(targetDate)} thành công!`, 'success');
+    notify(
+      `Đã ký nhận bàn giao Ca ${shift} ngày ${formatDateDisplay(
+        targetDate
+      )} thành công!`,
+      "success"
+    );
   };
 
   const handleAdminResetShift = async (shift: ShiftNumber) => {
     if (!auth || !isAdmin) return;
-    if (!window.confirm(`Mở khóa lại Ca ${shift} ngày ${formatDateDisplay(selectedDate)}? (Thao tác được ghi vào AUDIT_LOGS)`)) {
+    if (
+      !window.confirm(
+        `Mở khóa lại Ca ${shift} ngày ${formatDateDisplay(
+          selectedDate
+        )}? (Thao tác được ghi vào AUDIT_LOGS)`
+      )
+    ) {
       return;
     }
     const res = await rpcCall(
       apiUrl,
-      'shiftOp',
-      { ngayBC: selectedDate, caTruc: shift, op: 'reset' },
+      "shiftOp",
+      { ngayBC: selectedDate, caTruc: shift, op: "reset" },
       auth.token
     );
-    if (!res.net || res.body.status !== 'success') {
-      notify(res.body.message || 'Không thể mở khóa ca.', 'error');
+    if (!res.net || res.body.status !== "success") {
+      notify(res.body.message || "Không thể mở khóa ca.", "error");
       return;
     }
     await syncFromCloud(true, selectedDate);
-    notify(`Đã mở khóa lại Ca ${shift}.`, 'info');
+    notify(`Đã mở khóa lại Ca ${shift}.`, "info");
   };
 
   const handleForceUnlockSession = async () => {
     if (!auth || !isAdmin) return;
-    const res = await rpcCall(apiUrl, 'clearSession', { force: true }, auth.token);
-    if (!res.net || res.body.status !== 'success') {
-      notify(res.body.message || 'Không thể giải phóng phiên trên máy chủ.', 'error');
+    const res = await rpcCall(
+      apiUrl,
+      "clearSession",
+      { force: true },
+      auth.token
+    );
+    if (!res.net || res.body.status !== "success") {
+      notify(
+        res.body.message || "Không thể giải phóng phiên trên máy chủ.",
+        "error"
+      );
       return;
     }
     setActiveSession(null);
-    notify('Đã cưỡng chế giải phóng khóa phiên thành công!', 'success');
+    notify("Đã cưỡng chế giải phóng khóa phiên thành công!", "success");
   };
 
   const handleLogout = async () => {
     if (outbox.length > 0 && !isLockedByOtherUser) {
       await flushOutbox(false);
       if (outboxRef.current.length > 0) {
-        if (!window.confirm(`Còn ${outboxRef.current.length} thao tác chưa đồng bộ lên máy chủ. Bạn vẫn muốn đăng xuất? (Dữ liệu hàng đợi vẫn được bảo toàn trên trình duyệt)`)) {
+        if (
+          !window.confirm(
+            `Còn ${outboxRef.current.length} thao tác chưa đồng bộ lên máy chủ. Bạn vẫn muốn đăng xuất? (Dữ liệu hàng đợi vẫn được bảo toàn trên trình duyệt)`
+          )
+        ) {
           return;
         }
       }
     }
     if (auth && !isSessionHeldByOther) {
-      await rpcCall(apiUrl, 'clearSession', {}, auth.token);
+      await rpcCall(apiUrl, "clearSession", {}, auth.token);
     }
     setChecker(null);
     setAuth(null);
@@ -4673,34 +5043,46 @@ export function MainApp() {
   /* ==================== DỮ LIỆU HIỂN THỊ TRONG NGÀY (TAB 1 & TAB 2) ==================== */
 
   const visiblePending = useMemo(() => {
-    const list = pendingQueue.filter(p => p.ngayBC === selectedDate || p.ngayBC < selectedDate);
+    const list = pendingQueue.filter(
+      (p) => p.ngayBC === selectedDate || p.ngayBC < selectedDate
+    );
     return [...list].sort((a, b) => {
       if (a.ngayBC !== b.ngayBC) return a.ngayBC.localeCompare(b.ngayBC);
       const caDiff = (Number(a.caTruc) || 1) - (Number(b.caTruc) || 1);
       if (caDiff !== 0) return caDiff;
-      return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
+      return String(a.timestamp || "").localeCompare(String(b.timestamp || ""));
     });
   }, [pendingQueue, selectedDate]);
 
   const todayBm04Logs = useMemo(() => {
-    const list = bm04Logs.filter(l => {
-      if (String(l.ngayBC || '').trim() !== selectedDate) return false;
-      if (journalShiftFilter !== 'ALL' && Number(l.caTruc) !== Number(journalShiftFilter)) return false;
+    const list = bm04Logs.filter((l) => {
+      if (String(l.ngayBC || "").trim() !== selectedDate) return false;
+      if (
+        journalShiftFilter !== "ALL" &&
+        Number(l.caTruc) !== Number(journalShiftFilter)
+      )
+        return false;
       return true;
     });
     return [...list].sort((a, b) => {
       const caDiff = (Number(a.caTruc) || 1) - (Number(b.caTruc) || 1);
       if (caDiff !== 0) return caDiff;
-      return String(b.timestamp || '').localeCompare(String(a.timestamp || ''));
+      return String(b.timestamp || "").localeCompare(String(a.timestamp || ""));
     });
   }, [bm04Logs, selectedDate, journalShiftFilter]);
 
   const stockTestsForUi = useMemo(
-    () => currentDayComputed.tests.filter(t => isStockTestCode(t.code) && !t.noStock),
+    () =>
+      currentDayComputed.tests.filter(
+        (t) => isStockTestCode(t.code) && !t.noStock
+      ),
     [currentDayComputed.tests]
   );
 
-  const pausedOutboxCount = useMemo(() => outbox.filter(x => x.paused).length, [outbox]);
+  const pausedOutboxCount = useMemo(
+    () => outbox.filter((x) => x.paused).length,
+    [outbox]
+  );
 
   /* ==================== RENDER MÀN HÌNH ĐĂNG NHẬP NẾU CHƯA AUTH ==================== */
 
@@ -4712,22 +5094,24 @@ export function MainApp() {
           setAuth(nextAuth);
           if (initialSession !== undefined) {
             setActiveSession(initialSession);
-            const ownerId = String(initialSession?.mainUserId || '').toLowerCase();
+            const ownerId = String(
+              initialSession?.mainUserId || ""
+            ).toLowerCase();
             const isOther =
               Boolean(initialSession) &&
               (ownerId
                 ? ownerId !== nextAuth.user.id.toLowerCase()
                 : initialSession!.mainUser !== nextAuth.user.name);
             if (isOther && initialSession) {
-              if (nextAuth.user.role === 'Admin') {
+              if (nextAuth.user.role === "Admin") {
                 notify(
                   `Phiên đang được giữ bởi ${initialSession.mainUser} (Ca ${initialSession.shift}). Quyền Tối Thượng Admin đã kích hoạt!`,
-                  'info'
+                  "info"
                 );
               } else {
                 notify(
                   `Cảnh báo: Phiên làm việc đang được giữ bởi ${initialSession.mainUser} (Ca ${initialSession.shift}). Bạn đang ở chế độ CHỈ XEM!`,
-                  'info'
+                  "info"
                 );
               }
             }
@@ -4736,9 +5120,9 @@ export function MainApp() {
             setShowChangePwModal(true);
           }
         }}
-        onChangeApiUrl={nextUrl => {
+        onChangeApiUrl={(nextUrl) => {
           setApiUrl(nextUrl);
-          notify('Đã lưu cấu hình URL API mới!', 'success');
+          notify("Đã lưu cấu hình URL API mới!", "success");
         }}
       />
     );
@@ -4761,20 +5145,20 @@ export function MainApp() {
 
       {/* TOAST THÔNG BÁO NỔI */}
       <div className="no-print fixed bottom-4 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-none">
-        {toasts.map(t => (
+        {toasts.map((t) => (
           <div
             key={t.id}
             className={`pointer-events-auto px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center gap-2.5 transition-all ${
-              t.type === 'success'
-                ? 'bg-emerald-900/95 text-white border-emerald-400/40'
-                : t.type === 'error'
-                ? 'bg-rose-900/95 text-white border-rose-400/40'
-                : 'bg-slate-900/95 text-white border-slate-600'
+              t.type === "success"
+                ? "bg-emerald-900/95 text-white border-emerald-400/40"
+                : t.type === "error"
+                ? "bg-rose-900/95 text-white border-rose-400/40"
+                : "bg-slate-900/95 text-white border-slate-600"
             }`}
           >
-            {t.type === 'success' ? (
+            {t.type === "success" ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
-            ) : t.type === 'error' ? (
+            ) : t.type === "error" ? (
               <AlertTriangle className="w-4 h-4 text-rose-300 shrink-0" />
             ) : (
               <Sparkles className="w-4 h-4 text-sky-300 shrink-0" />
@@ -4815,7 +5199,7 @@ export function MainApp() {
                 type="date"
                 value={selectedDate}
                 max={isAdmin ? undefined : todayStr}
-                onChange={e => {
+                onChange={(e) => {
                   const val = e.target.value;
                   if (isDateStr(val)) {
                     datePickedRef.current = val !== todayStr;
@@ -4848,13 +5232,15 @@ export function MainApp() {
               <select
                 value={viewShift}
                 disabled={!isAdmin || isLockedByOtherUser}
-                onChange={e => {
+                onChange={(e) => {
                   const nextCa = Number(e.target.value) as ShiftNumber;
-                  setAdminShiftOverride(nextCa === effectiveShift ? null : nextCa);
+                  setAdminShiftOverride(
+                    nextCa === effectiveShift ? null : nextCa
+                  );
                 }}
                 className="bg-transparent text-xs font-black focus:outline-none cursor-pointer disabled:cursor-default"
               >
-                {([1, 2, 3, 4] as ShiftNumber[]).map(ca => (
+                {([1, 2, 3, 4] as ShiftNumber[]).map((ca) => (
                   <option
                     key={ca}
                     value={ca}
@@ -4883,12 +5269,14 @@ export function MainApp() {
               onClick={() => setShowCheckerModal(true)}
               className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 border transition disabled:opacity-50 ${
                 checker
-                  ? 'bg-emerald-600/90 border-emerald-400/50 text-white'
-                  : 'bg-amber-500/90 border-amber-300 text-slate-950 animate-pulse'
+                  ? "bg-emerald-600/90 border-emerald-400/50 text-white"
+                  : "bg-amber-500/90 border-amber-300 text-slate-950 animate-pulse"
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
-              <span>{checker ? `KT: ${checker.name}` : 'Chọn Người Kiểm Tra'}</span>
+              <span>
+                {checker ? `KT: ${checker.name}` : "Chọn Người Kiểm Tra"}
+              </span>
             </button>
 
             {/* Nút Đồng bộ & Hàng đợi Outbox */}
@@ -4900,19 +5288,21 @@ export function MainApp() {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 border transition ${
                 !isOnline || pausedOutboxCount > 0
-                  ? 'bg-rose-600 border-rose-400 text-white'
+                  ? "bg-rose-600 border-rose-400 text-white"
                   : outbox.length > 0
-                  ? 'bg-amber-500 border-amber-300 text-slate-950'
-                  : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                  ? "bg-amber-500 border-amber-300 text-slate-950"
+                  : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
               }`}
               title={
                 pausedOutboxCount > 0
                   ? `Có ${pausedOutboxCount} thao tác đang tạm dừng. Bấm để gửi lại ngay!`
-                  : 'Đồng bộ dữ liệu với Google Sheets'
+                  : "Đồng bộ dữ liệu với Google Sheets"
               }
             >
               {isOnline ? (
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`}
+                />
               ) : (
                 <WifiOff className="w-3.5 h-3.5" />
               )}
@@ -4922,8 +5312,8 @@ export function MainApp() {
                     ? `Gửi lại (${outbox.length})`
                     : `Đang lưu (${outbox.length})`
                   : isOnline
-                  ? 'Đã đồng bộ'
-                  : 'Offline'}
+                  ? "Đã đồng bộ"
+                  : "Offline"}
               </span>
             </button>
 
@@ -4961,11 +5351,11 @@ export function MainApp() {
         <div className="max-w-[1600px] mx-auto px-4 flex items-center gap-1 overflow-x-auto border-t border-slate-800/80 pt-1">
           <button
             type="button"
-            onClick={() => setActiveTab('WORK')}
+            onClick={() => setActiveTab("WORK")}
             className={`px-4 py-2.5 rounded-t-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition ${
-              activeTab === 'WORK'
-                ? 'bg-slate-100 text-sky-900 shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              activeTab === "WORK"
+                ? "bg-slate-100 text-sky-900 shadow-sm"
+                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
             }`}
           >
             <Layers className="w-4 h-4" /> 1. Test Miễn Dịch (BM.04)
@@ -4978,11 +5368,11 @@ export function MainApp() {
 
           <button
             type="button"
-            onClick={() => setActiveTab('BM13')}
+            onClick={() => setActiveTab("BM13")}
             className={`px-4 py-2.5 rounded-t-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition ${
-              activeTab === 'BM13'
-                ? 'bg-slate-100 text-sky-900 shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              activeTab === "BM13"
+                ? "bg-slate-100 text-sky-900 shadow-sm"
+                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" /> 2. Kho Hóa Chất (BM.13)
@@ -4995,23 +5385,24 @@ export function MainApp() {
 
           <button
             type="button"
-            onClick={() => setActiveTab('PRINT_BM04')}
+            onClick={() => setActiveTab("PRINT_BM04")}
             className={`px-4 py-2.5 rounded-t-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition ${
-              activeTab === 'PRINT_BM04'
-                ? 'bg-slate-100 text-sky-900 shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              activeTab === "PRINT_BM04"
+                ? "bg-slate-100 text-sky-900 shadow-sm"
+                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
             }`}
           >
-            <Printer className="w-4 h-4" /> 3. In Sổ BM.04 ({todayBm04Logs.length})
+            <Printer className="w-4 h-4" /> 3. In Sổ BM.04 (
+            {todayBm04Logs.length})
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab('PRINT_BM13')}
+            onClick={() => setActiveTab("PRINT_BM13")}
             className={`px-4 py-2.5 rounded-t-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition ${
-              activeTab === 'PRINT_BM13'
-                ? 'bg-slate-100 text-sky-900 shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              activeTab === "PRINT_BM13"
+                ? "bg-slate-100 text-sky-900 shadow-sm"
+                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
             }`}
           >
             <Printer className="w-4 h-4" /> 4. In Sổ BM.13
@@ -5020,11 +5411,11 @@ export function MainApp() {
           {isAdmin && (
             <button
               type="button"
-              onClick={() => setActiveTab('ADMIN')}
+              onClick={() => setActiveTab("ADMIN")}
               className={`px-4 py-2.5 rounded-t-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition ${
-                activeTab === 'ADMIN'
-                  ? 'bg-slate-100 text-amber-700 shadow-sm'
-                  : 'text-amber-300 hover:text-amber-200 hover:bg-slate-800/60'
+                activeTab === "ADMIN"
+                  ? "bg-slate-100 text-amber-700 shadow-sm"
+                  : "text-amber-300 hover:text-amber-200 hover:bg-slate-800/60"
               }`}
             >
               <Settings className="w-4 h-4" /> 5. Quản Trị Hệ Thống
@@ -5046,9 +5437,13 @@ export function MainApp() {
                   Cảnh báo: Bạn đang ở Chế độ Chỉ Xem (Read-Only)
                 </div>
                 <div className="text-[11px] font-semibold text-amber-800 mt-0.5">
-                  Phiên làm việc hiện đang được giữ bởi đồng nghiệp{' '}
-                  <strong className="underline font-black text-slate-900">{activeSession?.mainUser}</strong> (Ca{' '}
-                  {activeSession?.shift} • Ngày {formatDateDisplay(activeSession?.date || selectedDate)}). Mọi thao tác chỉnh sửa đã tạm khóa để bảo vệ dữ liệu.
+                  Phiên làm việc hiện đang được giữ bởi đồng nghiệp{" "}
+                  <strong className="underline font-black text-slate-900">
+                    {activeSession?.mainUser}
+                  </strong>{" "}
+                  (Ca {activeSession?.shift} • Ngày{" "}
+                  {formatDateDisplay(activeSession?.date || selectedDate)}). Mọi
+                  thao tác chỉnh sửa đã tạm khóa để bảo vệ dữ liệu.
                 </div>
               </div>
             </div>
@@ -5082,9 +5477,14 @@ export function MainApp() {
                   Quyền Tối Thượng Admin Đang Kích Hoạt
                 </div>
                 <div className="text-[11px] font-semibold text-purple-800 mt-0.5">
-                  Phiên làm việc hiện đang được giữ bởi đồng nghiệp{' '}
-                  <strong className="underline font-black text-slate-900">{activeSession?.mainUser}</strong> (Ca{' '}
-                  {activeSession?.shift} • Ngày {formatDateDisplay(activeSession?.date || selectedDate)}). Bạn là Admin nên có toàn quyền thao tác xuyên phiên mà không làm văng phiên của đồng nghiệp.
+                  Phiên làm việc hiện đang được giữ bởi đồng nghiệp{" "}
+                  <strong className="underline font-black text-slate-900">
+                    {activeSession?.mainUser}
+                  </strong>{" "}
+                  (Ca {activeSession?.shift} • Ngày{" "}
+                  {formatDateDisplay(activeSession?.date || selectedDate)}). Bạn
+                  là Admin nên có toàn quyền thao tác xuyên phiên mà không làm
+                  văng phiên của đồng nghiệp.
                 </div>
               </div>
             </div>
@@ -5119,7 +5519,7 @@ export function MainApp() {
                   datePickedRef.current = true;
                   setSelectedDate(yesterdayCa4PendingBlock.date);
                 }
-                setActiveTab('BM13');
+                setActiveTab("BM13");
               }}
               className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black uppercase flex items-center gap-1"
             >
@@ -5132,17 +5532,22 @@ export function MainApp() {
       {/* NỘI DUNG CHÍNH THEO TAB */}
       <main className="max-w-[1600px] w-full mx-auto p-4 flex-1">
         {/* ==================== TAB 1: WORKSPACE 3 CỘT (BM.04 & TỒN KHO CA) ==================== */}
-        {activeTab === 'WORK' && (
+        {activeTab === "WORK" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
             {/* CỘT 1 (4/12): TIẾP NHẬN BỆNH NHÂN */}
             <div className="lg:col-span-4 bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <h2 className="text-sm font-black uppercase text-slate-900">1. Tiếp Nhận Bệnh Nhân</h2>
+                  <h2 className="text-sm font-black uppercase text-slate-900">
+                    1. Tiếp Nhận Bệnh Nhân
+                  </h2>
                   <p className="text-[11px] font-semibold text-slate-500">
-                    Đang ghi nhận vào:{' '}
-                    <span className={`px-2 py-0.5 rounded font-black ${activeShiftTheme.badgeBg} ${activeShiftTheme.badgeText}`}>
-                      {SHIFT_INFO[viewShift].short} ({SHIFT_INFO[viewShift].timeRange})
+                    Đang ghi nhận vào:{" "}
+                    <span
+                      className={`px-2 py-0.5 rounded font-black ${activeShiftTheme.badgeBg} ${activeShiftTheme.badgeText}`}
+                    >
+                      {SHIFT_INFO[viewShift].short} (
+                      {SHIFT_INFO[viewShift].timeRange})
                     </span>
                   </p>
                 </div>
@@ -5161,7 +5566,7 @@ export function MainApp() {
                   <input
                     type="text"
                     value={hoTenBN}
-                    onChange={e => setHoTenBN(e.target.value.toUpperCase())}
+                    onChange={(e) => setHoTenBN(e.target.value.toUpperCase())}
                     disabled={isWorkDisabled}
                     placeholder="NGUYỄN VĂN A"
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-black uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-100"
@@ -5170,19 +5575,23 @@ export function MainApp() {
 
                 <div className="grid grid-cols-12 gap-2.5">
                   <div className="col-span-5">
-                    <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">Giới tính</label>
+                    <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                      Giới tính
+                    </label>
                     <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
-                      {(['Nam', 'Nu'] as const).map(g => (
+                      {(["Nam", "Nu"] as const).map((g) => (
                         <button
                           key={g}
                           type="button"
                           disabled={isWorkDisabled}
                           onClick={() => setGioiTinh(g)}
                           className={`py-1.5 rounded-lg text-xs font-black transition disabled:opacity-60 ${
-                            gioiTinh === g ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-600'
+                            gioiTinh === g
+                              ? "bg-white text-sky-700 shadow-sm"
+                              : "text-slate-600"
                           }`}
                         >
-                          {g === 'Nam' ? 'Nam' : 'Nữ'}
+                          {g === "Nam" ? "Nam" : "Nữ"}
                         </button>
                       ))}
                     </div>
@@ -5192,7 +5601,7 @@ export function MainApp() {
                   <div className="col-span-3">
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-[11px] font-black uppercase text-slate-600">
-                        {isAgeMode ? 'Tuổi *' : 'Năm sinh *'}
+                        {isAgeMode ? "Tuổi *" : "Năm sinh *"}
                       </label>
                       <label
                         className="inline-flex items-center gap-1 cursor-pointer select-none text-[10px] font-black text-sky-700 hover:text-sky-800"
@@ -5202,7 +5611,7 @@ export function MainApp() {
                           type="checkbox"
                           checked={isAgeMode}
                           disabled={isWorkDisabled}
-                          onChange={e => setIsAgeMode(e.target.checked)}
+                          onChange={(e) => setIsAgeMode(e.target.checked)}
                           className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5 cursor-pointer"
                         />
                         <span>Tuổi</span>
@@ -5211,25 +5620,27 @@ export function MainApp() {
                     <input
                       type="number"
                       value={namSinh}
-                      onChange={e => setNamSinh(e.target.value)}
+                      onChange={(e) => setNamSinh(e.target.value)}
                       disabled={isWorkDisabled}
-                      placeholder={isAgeMode ? 'VD: 35' : '1985'}
+                      placeholder={isAgeMode ? "VD: 35" : "1985"}
                       min={isAgeMode ? 1 : 1900}
                       max={isAgeMode ? 130 : getVnParts().year}
                       className={`w-full px-2 py-2 rounded-xl border text-sm font-black text-center text-slate-900 focus:outline-none focus:ring-2 disabled:bg-slate-100 ${
                         isAgeMode
-                          ? 'border-amber-400 bg-amber-50/40 focus:ring-amber-500'
-                          : 'border-slate-300 focus:ring-sky-500'
+                          ? "border-amber-400 bg-amber-50/40 focus:ring-amber-500"
+                          : "border-slate-300 focus:ring-sky-500"
                       }`}
                     />
                   </div>
 
                   <div className="col-span-4">
-                    <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">Barcode *</label>
+                    <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                      Barcode *
+                    </label>
                     <input
                       type="text"
                       value={barcode}
-                      onChange={e => setBarcode(e.target.value)}
+                      onChange={(e) => setBarcode(e.target.value)}
                       disabled={isWorkDisabled}
                       placeholder="21110772"
                       className="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-100"
@@ -5254,10 +5665,12 @@ export function MainApp() {
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-[300px] overflow-y-auto p-1">
-                    {testsConfig.map(t => {
+                    {testsConfig.map((t) => {
                       const active = selectedTestCodes.includes(t.code);
                       const isNoStock = !isStockTestCode(t.code) || t.noStock;
-                      const stockEnd = currentDayComputed.shifts[viewShift]?.[t.code]?.tonCuoi ?? 0;
+                      const stockEnd =
+                        currentDayComputed.shifts[viewShift]?.[t.code]
+                          ?.tonCuoi ?? 0;
                       return (
                         <button
                           key={t.code}
@@ -5266,25 +5679,27 @@ export function MainApp() {
                           onClick={() => handleToggleTestCode(t.code)}
                           className={`p-2 rounded-xl border text-left transition flex flex-col justify-between disabled:opacity-60 ${
                             active
-                              ? 'bg-sky-600 text-white border-sky-600 shadow-md'
+                              ? "bg-sky-600 text-white border-sky-600 shadow-md"
                               : isNoStock
-                              ? 'bg-purple-50/60 hover:bg-purple-100/70 text-slate-800 border-purple-200'
-                              : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200'
+                              ? "bg-purple-50/60 hover:bg-purple-100/70 text-slate-800 border-purple-200"
+                              : "bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200"
                           }`}
                         >
-                          <div className="text-xs font-black leading-tight truncate">{t.name}</div>
+                          <div className="text-xs font-black leading-tight truncate">
+                            {t.name}
+                          </div>
                           <div
                             className={`text-[10px] font-bold mt-1 ${
                               active
-                                ? 'text-sky-100'
+                                ? "text-sky-100"
                                 : isNoStock
-                                ? 'text-purple-700'
+                                ? "text-purple-700"
                                 : stockEnd <= 0
-                                ? 'text-rose-600 font-black'
-                                : 'text-slate-500'
+                                ? "text-rose-600 font-black"
+                                : "text-slate-500"
                             }`}
                           >
-                            {isNoStock ? '8 chân • BM.04' : `Tồn: ${stockEnd}`}
+                            {isNoStock ? "8 chân • BM.04" : `Tồn: ${stockEnd}`}
                           </div>
                         </button>
                       );
@@ -5312,7 +5727,8 @@ export function MainApp() {
                     2. Chờ Đọc Kết Quả ({visiblePending.length})
                   </h2>
                   <span className="text-[11px] font-bold text-slate-500">
-                    Nhấn ⏱ để hẹn 10&apos; / 15&apos; / 20&apos; (Báo 3 tiếng Tít khi hết giờ)
+                    Nhấn ⏱ để hẹn 10&apos; / 15&apos; / 20&apos; (Báo 3 tiếng
+                    Tít khi hết giờ)
                   </span>
                 </div>
 
@@ -5322,42 +5738,50 @@ export function MainApp() {
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
-                    {visiblePending.map(item => {
+                    {visiblePending.map((item) => {
                       const isMulti = Boolean(getSubTests(item.maTest));
-                      const draft = drafts[item.id] || { docChung: item.docChung, ketQua: '' };
-                      const itemShiftTheme = SHIFT_THEME[item.caTruc] || SHIFT_THEME[1];
+                      const draft = drafts[item.id] || {
+                        docChung: item.docChung,
+                        ketQua: "",
+                      };
+                      const itemShiftTheme =
+                        SHIFT_THEME[item.caTruc] || SHIFT_THEME[1];
                       const isFromPastDate = item.ngayBC !== selectedDate;
 
                       // Tính toán trạng thái Đồng hồ đếm ngược cho từng bệnh nhân
                       const tInfo = timers[item.id];
                       let remainMs = 0;
                       let remainRatio = 1;
-                      let timerLevel: 'NONE' | 'SAFE' | 'WARN_50' | 'CRIT_5' = 'NONE';
+                      let timerLevel: "NONE" | "SAFE" | "WARN_50" | "CRIT_5" =
+                        "NONE";
 
                       if (tInfo && tInfo.durationMs > 0) {
                         const elapsed = Math.max(0, timerNowMs - tInfo.startAt);
                         remainMs = Math.max(0, tInfo.durationMs - elapsed);
                         remainRatio = remainMs / tInfo.durationMs;
                         if (remainRatio <= 0.05) {
-                          timerLevel = 'CRIT_5'; // Còn <= 5% thời gian: Nhấp nháy đỏ khẩn cấp
+                          timerLevel = "CRIT_5"; // Còn <= 5% thời gian: Nhấp nháy đỏ khẩn cấp
                         } else if (remainRatio <= 0.5) {
-                          timerLevel = 'WARN_50'; // Còn <= 50% thời gian: Chuyển nền vàng cảnh báo
+                          timerLevel = "WARN_50"; // Còn <= 50% thời gian: Chuyển nền vàng cảnh báo
                         } else {
-                          timerLevel = 'SAFE';
+                          timerLevel = "SAFE";
                         }
                       }
 
                       const cardBgClass =
-                        timerLevel === 'CRIT_5'
-                          ? 'bg-rose-100 border-2 border-rose-500 shadow-md ring-2 ring-rose-300 animate-pulse'
-                          : timerLevel === 'WARN_50'
-                          ? 'bg-amber-100/90 border-2 border-amber-400 shadow-sm'
+                        timerLevel === "CRIT_5"
+                          ? "bg-rose-100 border-2 border-rose-500 shadow-md ring-2 ring-rose-300 animate-pulse"
+                          : timerLevel === "WARN_50"
+                          ? "bg-amber-100/90 border-2 border-amber-400 shadow-sm"
                           : isFromPastDate
-                          ? 'bg-amber-50/70 border border-amber-300'
-                          : 'bg-slate-50/70 border border-slate-200';
+                          ? "bg-amber-50/70 border border-amber-300"
+                          : "bg-slate-50/70 border border-slate-200";
 
                       const rawBirthOrAge = item.namSinhNam || item.namSinhNu;
-                      const isAgeValue = item.isAgeMode || (Number(rawBirthOrAge) > 0 && Number(rawBirthOrAge) <= 130);
+                      const isAgeValue =
+                        item.isAgeMode ||
+                        (Number(rawBirthOrAge) > 0 &&
+                          Number(rawBirthOrAge) <= 130);
 
                       return (
                         <div
@@ -5385,11 +5809,15 @@ export function MainApp() {
                                 </span>
                               </div>
                               <div className="text-[11px] font-semibold text-slate-600 mt-0.5">
-                                Barcode: <span className="font-bold text-slate-900">{item.barcode}</span> •{' '}
-                                {isAgeValue ? 'Tuổi' : 'Năm sinh'}:{' '}
+                                Barcode:{" "}
+                                <span className="font-bold text-slate-900">
+                                  {item.barcode}
+                                </span>{" "}
+                                • {isAgeValue ? "Tuổi" : "Năm sinh"}:{" "}
                                 <span className="font-bold text-slate-800">
-                                  {rawBirthOrAge} ({item.namSinhNam ? 'Nam' : 'Nữ'})
-                                </span>{' '}
+                                  {rawBirthOrAge} (
+                                  {item.namSinhNam ? "Nam" : "Nữ"})
+                                </span>{" "}
                                 • TH: {item.nguoiThucHien}
                               </div>
                             </div>
@@ -5400,23 +5828,28 @@ export function MainApp() {
                                 type="button"
                                 disabled={isLockedByOtherUser}
                                 onClick={() =>
-                                  setOpenTimerMenuId(prev => (prev === item.id ? null : item.id))
+                                  setOpenTimerMenuId((prev) =>
+                                    prev === item.id ? null : item.id
+                                  )
                                 }
                                 className={`px-2.5 py-1 rounded-xl text-[11px] font-black flex items-center gap-1 border transition disabled:opacity-50 ${
-                                  timerLevel === 'CRIT_5'
-                                    ? 'bg-rose-600 text-white border-rose-700 shadow-sm'
-                                    : timerLevel === 'WARN_50'
-                                    ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-sm'
-                                    : timerLevel === 'SAFE'
-                                    ? 'bg-sky-600 text-white border-sky-700 shadow-sm'
-                                    : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-300'
+                                  timerLevel === "CRIT_5"
+                                    ? "bg-rose-600 text-white border-rose-700 shadow-sm"
+                                    : timerLevel === "WARN_50"
+                                    ? "bg-amber-500 text-slate-950 border-amber-600 shadow-sm"
+                                    : timerLevel === "SAFE"
+                                    ? "bg-sky-600 text-white border-sky-700 shadow-sm"
+                                    : "bg-white hover:bg-sky-50 text-slate-700 border-slate-300"
                                 }`}
                                 title="Bấm để chọn thời gian đếm ngược (10', 15', 20')"
                               >
                                 <Clock className="w-3.5 h-3.5 shrink-0" />
                                 {tInfo ? (
                                   <span>
-                                    {remainMs <= 0 ? 'ĐỌC KQ!' : formatCountdownMmSs(remainMs)} ({tInfo.presetMin}&apos;)
+                                    {remainMs <= 0
+                                      ? "ĐỌC KQ!"
+                                      : formatCountdownMmSs(remainMs)}{" "}
+                                    ({tInfo.presetMin}&apos;)
                                   </span>
                                 ) : (
                                   <span>Hẹn giờ</span>
@@ -5437,41 +5870,48 @@ export function MainApp() {
                           </div>
 
                           {/* MENU CHỌN MỐC ĐẾM NGƯỢC 10' / 15' / 20' */}
-                          {openTimerMenuId === item.id && !isLockedByOtherUser && (
-                            <div className="flex flex-wrap items-center justify-between gap-1.5 bg-white/95 p-2 rounded-xl border border-sky-300 shadow-sm">
-                              <span className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5 text-sky-600" /> Chọn thời gian ủ test:
-                              </span>
-                              <div className="flex items-center gap-1">
-                                {([10, 15, 20] as TimerPresetMinutes[]).map(mins => {
-                                  const isSelected = tInfo?.presetMin === mins;
-                                  return (
+                          {openTimerMenuId === item.id &&
+                            !isLockedByOtherUser && (
+                              <div className="flex flex-wrap items-center justify-between gap-1.5 bg-white/95 p-2 rounded-xl border border-sky-300 shadow-sm">
+                                <span className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1">
+                                  <Clock className="w-3.5 h-3.5 text-sky-600" />{" "}
+                                  Chọn thời gian ủ test:
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  {([10, 15, 20] as TimerPresetMinutes[]).map(
+                                    (mins) => {
+                                      const isSelected =
+                                        tInfo?.presetMin === mins;
+                                      return (
+                                        <button
+                                          key={mins}
+                                          type="button"
+                                          onClick={() =>
+                                            handleStartTimer(item.id, mins)
+                                          }
+                                          className={`px-3 py-1 rounded-lg text-xs font-black transition ${
+                                            isSelected
+                                              ? "bg-sky-600 text-white shadow-sm"
+                                              : "bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200"
+                                          }`}
+                                        >
+                                          {mins}&apos;
+                                        </button>
+                                      );
+                                    }
+                                  )}
+                                  {tInfo && (
                                     <button
-                                      key={mins}
                                       type="button"
-                                      onClick={() => handleStartTimer(item.id, mins)}
-                                      className={`px-3 py-1 rounded-lg text-xs font-black transition ${
-                                        isSelected
-                                          ? 'bg-sky-600 text-white shadow-sm'
-                                          : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200'
-                                      }`}
+                                      onClick={() => handleCancelTimer(item.id)}
+                                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-black"
                                     >
-                                      {mins}&apos;
+                                      Tắt
                                     </button>
-                                  );
-                                })}
-                                {tInfo && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCancelTimer(item.id)}
-                                    className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-black"
-                                  >
-                                    Tắt
-                                  </button>
-                                )}
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
 
                           {/* THANH TIẾN TRÌNH ĐẾM NGƯỢC TRỰC QUAN */}
                           {tInfo && (
@@ -5479,31 +5919,36 @@ export function MainApp() {
                               <div className="w-full h-1.5 rounded-full bg-white/80 overflow-hidden border border-slate-200/80">
                                 <div
                                   className={`h-full transition-all duration-500 ${
-                                    timerLevel === 'CRIT_5'
-                                      ? 'bg-rose-600'
-                                      : timerLevel === 'WARN_50'
-                                      ? 'bg-amber-500'
-                                      : 'bg-sky-600'
+                                    timerLevel === "CRIT_5"
+                                      ? "bg-rose-600"
+                                      : timerLevel === "WARN_50"
+                                      ? "bg-amber-500"
+                                      : "bg-sky-600"
                                   }`}
-                                  style={{ width: `${Math.max(2, Math.min(100, remainRatio * 100))}%` }}
+                                  style={{
+                                    width: `${Math.max(
+                                      2,
+                                      Math.min(100, remainRatio * 100)
+                                    )}%`,
+                                  }}
                                 />
                               </div>
                               <div className="flex items-center justify-between text-[10px] font-black uppercase">
                                 <span
                                   className={
-                                    timerLevel === 'CRIT_5'
-                                      ? 'text-rose-700'
-                                      : timerLevel === 'WARN_50'
-                                      ? 'text-amber-800'
-                                      : 'text-sky-700'
+                                    timerLevel === "CRIT_5"
+                                      ? "text-rose-700"
+                                      : timerLevel === "WARN_50"
+                                      ? "text-amber-800"
+                                      : "text-sky-700"
                                   }
                                 >
-                                  {timerLevel === 'CRIT_5'
+                                  {timerLevel === "CRIT_5"
                                     ? remainMs <= 0
-                                      ? '🚨 Đã hết thời gian ủ — Đọc kết quả ngay!'
-                                      : '🚨 Còn ≤ 5% thời gian — Chuẩn bị đọc kết quả ngay!'
-                                    : timerLevel === 'WARN_50'
-                                    ? '⚠️ Còn ≤ 50% thời gian ủ test'
+                                      ? "🚨 Đã hết thời gian ủ — Đọc kết quả ngay!"
+                                      : "🚨 Còn ≤ 5% thời gian — Chuẩn bị đọc kết quả ngay!"
+                                    : timerLevel === "WARN_50"
+                                    ? "⚠️ Còn ≤ 50% thời gian ủ test"
                                     : `⏱ Đang đếm ngược mốc ${tInfo.presetMin} phút`}
                                 </span>
                                 <span className="font-mono text-slate-700">
@@ -5521,23 +5966,37 @@ export function MainApp() {
                                   Đọc chứng (C):
                                 </span>
                                 <div className="flex gap-1.5">
-                                  {(['Dương tính', 'Âm Tính'] as DocChungValue[]).map(dc => {
+                                  {(
+                                    ["Dương tính", "Âm Tính"] as DocChungValue[]
+                                  ).map((dc) => {
                                     const active = draft.docChung === dc;
                                     const activeCls =
-                                      dc === 'Dương tính'
-                                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200'
-                                        : 'bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200';
+                                      dc === "Dương tính"
+                                        ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200"
+                                        : "bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200";
                                     return (
                                       <button
                                         key={dc}
                                         type="button"
                                         disabled={isLockedByOtherUser}
-                                        onClick={() => setDrafts(prev => ({ ...prev, [item.id]: { ...draft, docChung: dc } }))}
+                                        onClick={() =>
+                                          setDrafts((prev) => ({
+                                            ...prev,
+                                            [item.id]: {
+                                              ...draft,
+                                              docChung: dc,
+                                            },
+                                          }))
+                                        }
                                         className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition disabled:opacity-50 ${
-                                          active ? activeCls : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
+                                          active
+                                            ? activeCls
+                                            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
                                         }`}
                                       >
-                                        {dc === 'Dương tính' ? '● Dương tính' : '○ Âm tính'}
+                                        {dc === "Dương tính"
+                                          ? "● Dương tính"
+                                          : "○ Âm tính"}
                                       </button>
                                     );
                                   })}
@@ -5547,13 +6006,15 @@ export function MainApp() {
                                 maTest={item.maTest}
                                 value={draft.ketQua}
                                 disabled={isLockedByOtherUser}
-                                onChange={nextVal =>
-                                  setDrafts(prev => ({
+                                onChange={(nextVal) =>
+                                  setDrafts((prev) => ({
                                     ...prev,
-                                    [item.id]: { ...draft, ketQua: nextVal }
+                                    [item.id]: { ...draft, ketQua: nextVal },
                                   }))
                                 }
-                                onEnterSubmit={() => handleSaveResultFromQueue(item)}
+                                onEnterSubmit={() =>
+                                  handleSaveResultFromQueue(item)
+                                }
                                 compact
                               />
                               <button
@@ -5562,7 +6023,8 @@ export function MainApp() {
                                 onClick={() => handleSaveResultFromQueue(item)}
                                 className="w-full py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm"
                               >
-                                <Check className="w-4 h-4" /> Lưu kết quả {item.tenXetNghiem}
+                                <Check className="w-4 h-4" /> Lưu kết quả{" "}
+                                {item.tenXetNghiem}
                               </button>
                             </div>
                           ) : (
@@ -5572,23 +6034,37 @@ export function MainApp() {
                                   Đọc chứng (C):
                                 </span>
                                 <div className="flex gap-1.5">
-                                  {(['Dương tính', 'Âm Tính'] as DocChungValue[]).map(dc => {
+                                  {(
+                                    ["Dương tính", "Âm Tính"] as DocChungValue[]
+                                  ).map((dc) => {
                                     const active = draft.docChung === dc;
                                     const activeCls =
-                                      dc === 'Dương tính'
-                                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200'
-                                        : 'bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200';
+                                      dc === "Dương tính"
+                                        ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200"
+                                        : "bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200";
                                     return (
                                       <button
                                         key={dc}
                                         type="button"
                                         disabled={isLockedByOtherUser}
-                                        onClick={() => setDrafts(prev => ({ ...prev, [item.id]: { ...draft, docChung: dc } }))}
+                                        onClick={() =>
+                                          setDrafts((prev) => ({
+                                            ...prev,
+                                            [item.id]: {
+                                              ...draft,
+                                              docChung: dc,
+                                            },
+                                          }))
+                                        }
                                         className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition disabled:opacity-50 ${
-                                          active ? activeCls : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
+                                          active
+                                            ? activeCls
+                                            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
                                         }`}
                                       >
-                                        {dc === 'Dương tính' ? '● Dương tính' : '○ Âm tính'}
+                                        {dc === "Dương tính"
+                                          ? "● Dương tính"
+                                          : "○ Âm tính"}
                                       </button>
                                     );
                                   })}
@@ -5598,7 +6074,9 @@ export function MainApp() {
                                 <button
                                   type="button"
                                   disabled={isLockedByOtherUser}
-                                  onClick={() => handleSaveResultFromQueue(item, 'Âm tính')}
+                                  onClick={() =>
+                                    handleSaveResultFromQueue(item, "Âm tính")
+                                  }
                                   className="py-3 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-black uppercase shadow-md transition"
                                 >
                                   ÂM TÍNH (LƯU)
@@ -5606,7 +6084,12 @@ export function MainApp() {
                                 <button
                                   type="button"
                                   disabled={isLockedByOtherUser}
-                                  onClick={() => handleSaveResultFromQueue(item, 'Dương tính')}
+                                  onClick={() =>
+                                    handleSaveResultFromQueue(
+                                      item,
+                                      "Dương tính"
+                                    )
+                                  }
                                   className="py-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-sm font-black uppercase shadow-md transition"
                                 >
                                   DƯƠNG TÍNH (LƯU)
@@ -5631,14 +6114,16 @@ export function MainApp() {
                     <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                       <button
                         type="button"
-                        onClick={() => setJournalShiftFilter('ALL')}
+                        onClick={() => setJournalShiftFilter("ALL")}
                         className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition ${
-                          journalShiftFilter === 'ALL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                          journalShiftFilter === "ALL"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-500"
                         }`}
                       >
                         Tất cả
                       </button>
-                      {([1, 2, 3, 4] as ShiftNumber[]).map(ca => (
+                      {([1, 2, 3, 4] as ShiftNumber[]).map((ca) => (
                         <button
                           key={ca}
                           type="button"
@@ -5646,7 +6131,7 @@ export function MainApp() {
                           className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition ${
                             journalShiftFilter === ca
                               ? `${SHIFT_THEME[ca].badgeBg} text-white shadow-sm`
-                              : 'text-slate-600 hover:bg-white/60'
+                              : "text-slate-600 hover:bg-white/60"
                           }`}
                         >
                           Ca {ca}
@@ -5661,17 +6146,20 @@ export function MainApp() {
 
                 {todayBm04Logs.length === 0 ? (
                   <div className="py-8 text-center text-xs font-semibold text-slate-400">
-                    Chưa có kết quả BM.04 nào trong ngày {formatDateDisplay(selectedDate)}.
+                    Chưa có kết quả BM.04 nào trong ngày{" "}
+                    {formatDateDisplay(selectedDate)}.
                   </div>
                 ) : (
                   <div className="space-y-2.5 max-h-[430px] overflow-y-auto pr-1">
-                    {todayBm04Logs.map(r => {
-                      const shiftTheme = SHIFT_THEME[r.caTruc] || SHIFT_THEME[1];
+                    {todayBm04Logs.map((r) => {
+                      const shiftTheme =
+                        SHIFT_THEME[r.caTruc] || SHIFT_THEME[1];
                       const displayKq = getSubTests(r.maTest)
-                        ? formatShortMultiSummary(r.maTest, r.ketQua || '')
-                        : (r.ketQua || '').toUpperCase();
+                        ? formatShortMultiSummary(r.maTest, r.ketQua || "")
+                        : (r.ketQua || "").toUpperCase();
                       const isPositive =
-                        displayKq.toLowerCase().includes('dương') || displayKq.includes('(D)');
+                        displayKq.toLowerCase().includes("dương") ||
+                        displayKq.includes("(D)");
                       const canModify = canUserModifyRecord(r);
 
                       return (
@@ -5697,12 +6185,21 @@ export function MainApp() {
 
                               <div className="text-xs font-semibold text-slate-600 flex flex-wrap items-center gap-1.5">
                                 <span>
-                                  Barcode: <strong className="text-slate-900">{r.barcode}</strong>
+                                  Barcode:{" "}
+                                  <strong className="text-slate-900">
+                                    {r.barcode}
+                                  </strong>
                                 </span>
                                 <span>•</span>
                                 <span>
-                                  KQ:{' '}
-                                  <strong className={isPositive ? 'text-rose-600 font-black' : 'text-sky-800 font-black'}>
+                                  KQ:{" "}
+                                  <strong
+                                    className={
+                                      isPositive
+                                        ? "text-rose-600 font-black"
+                                        : "text-sky-800 font-black"
+                                    }
+                                  >
                                     {displayKq}
                                   </strong>
                                 </span>
@@ -5721,8 +6218,18 @@ export function MainApp() {
                                   <Clock className="w-3 h-3 text-rose-500" />
                                   {r.thoiGianDocKQ}
                                 </span>
-                                <span>• TH: <strong className="text-slate-700">{r.nguoiThucHien}</strong></span>
-                                <span>• KT: <strong className="text-emerald-700">{r.nguoiKiemTra}</strong></span>
+                                <span>
+                                  • TH:{" "}
+                                  <strong className="text-slate-700">
+                                    {r.nguoiThucHien}
+                                  </strong>
+                                </span>
+                                <span>
+                                  • KT:{" "}
+                                  <strong className="text-emerald-700">
+                                    {r.nguoiKiemTra}
+                                  </strong>
+                                </span>
                               </div>
                             </div>
 
@@ -5792,39 +6299,54 @@ export function MainApp() {
                     <tr className="text-[10px] font-black uppercase text-slate-400 border-b border-slate-100">
                       <th className="py-1.5 text-left">Xét nghiệm</th>
                       <th className="py-1.5 text-center">Đầu</th>
-                      <th className="py-1.5 text-center text-emerald-600">+Bù</th>
-                      <th className="py-1.5 text-center text-rose-600">-Dùng</th>
+                      <th className="py-1.5 text-center text-emerald-600">
+                        +Bù
+                      </th>
+                      <th className="py-1.5 text-center text-rose-600">
+                        -Dùng
+                      </th>
                       <th className="py-1.5 text-right text-sky-700">Cuối</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {stockTestsForUi.map(t => {
+                    {stockTestsForUi.map((t) => {
                       const prevEnd =
                         viewShift === 1
                           ? currentDayComputed.tonDau[t.code] ?? 0
-                          : currentDayComputed.shifts[(viewShift - 1) as ShiftNumber]?.[t.code]?.tonCuoi ?? 0;
-                      const cell = currentDayComputed.shifts[viewShift]?.[t.code] || {
+                          : currentDayComputed.shifts[
+                              (viewShift - 1) as ShiftNumber
+                            ]?.[t.code]?.tonCuoi ?? 0;
+                      const cell = currentDayComputed.shifts[viewShift]?.[
+                        t.code
+                      ] || {
                         boiHoan: 0,
                         suDungQC: 0,
                         suDung: 0,
-                        tonCuoi: prevEnd
+                        tonCuoi: prevEnd,
                       };
                       const totalUsed = cell.suDung + cell.suDungQC;
                       return (
                         <tr key={t.code} className="hover:bg-slate-50">
-                          <td className="py-2 font-black text-slate-800 truncate max-w-[110px]" title={t.name}>
+                          <td
+                            className="py-2 font-black text-slate-800 truncate max-w-[110px]"
+                            title={t.name}
+                          >
                             {t.name}
                           </td>
-                          <td className="py-2 text-center font-semibold text-slate-600">{prevEnd}</td>
+                          <td className="py-2 text-center font-semibold text-slate-600">
+                            {prevEnd}
+                          </td>
                           <td className="py-2 text-center font-bold text-emerald-600">
-                            {cell.boiHoan > 0 ? `+${cell.boiHoan}` : '–'}
+                            {cell.boiHoan > 0 ? `+${cell.boiHoan}` : "–"}
                           </td>
                           <td className="py-2 text-center font-black text-rose-600">
-                            {totalUsed > 0 ? totalUsed : '–'}
+                            {totalUsed > 0 ? totalUsed : "–"}
                           </td>
                           <td
                             className={`py-2 text-right font-black ${
-                              cell.tonCuoi <= 0 ? 'text-rose-600' : 'text-sky-700'
+                              cell.tonCuoi <= 0
+                                ? "text-rose-600"
+                                : "text-sky-700"
                             }`}
                           >
                             {cell.tonCuoi}
@@ -5840,16 +6362,18 @@ export function MainApp() {
         )}
 
         {/* ==================== TAB 2: KHO HÓA CHẤT & BÀN GIAO 4 CA (BM.13) ==================== */}
-        {activeTab === 'BM13' && (
+        {activeTab === "BM13" && (
           <div className="space-y-4">
             {/* Thanh điều khiển 4 Ca trực trên đầu Tab 2 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              {([1, 2, 3, 4] as ShiftNumber[]).map(ca => {
+              {([1, 2, 3, 4] as ShiftNumber[]).map((ca) => {
                 const m = currentDayComputed.meta[ca];
                 const theme = SHIFT_THEME[ca];
-                const overdue = m.trangThai === 'OPEN' && isShiftOverdue(selectedDate, ca, nowTick);
+                const overdue =
+                  m.trangThai === "OPEN" &&
+                  isShiftOverdue(selectedDate, ca, nowTick);
                 const pendingCnt = pendingQueue.filter(
-                  p => p.ngayBC === selectedDate && Number(p.caTruc) === ca
+                  (p) => p.ngayBC === selectedDate && Number(p.caTruc) === ca
                 ).length;
 
                 return (
@@ -5859,43 +6383,51 @@ export function MainApp() {
                   >
                     <div>
                       <div className="flex items-center justify-between">
-                        <span className={`px-3 py-1 rounded-xl text-xs font-black ${theme.badgeBg} ${theme.badgeText}`}>
+                        <span
+                          className={`px-3 py-1 rounded-xl text-xs font-black ${theme.badgeBg} ${theme.badgeText}`}
+                        >
                           {SHIFT_INFO[ca].label}
                         </span>
                         <span
                           className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase ${
-                            m.trangThai === 'HOAN_THANH'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : m.trangThai === 'PENDING_RECEIVE'
-                              ? 'bg-amber-100 text-amber-800 animate-pulse'
+                            m.trangThai === "HOAN_THANH"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : m.trangThai === "PENDING_RECEIVE"
+                              ? "bg-amber-100 text-amber-800 animate-pulse"
                               : overdue
-                              ? 'bg-rose-100 text-rose-700'
-                              : 'bg-slate-100 text-slate-600'
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-slate-100 text-slate-600"
                           }`}
                         >
-                          {m.trangThai === 'HOAN_THANH'
-                            ? 'Đã hoàn thành'
-                            : m.trangThai === 'PENDING_RECEIVE'
-                            ? 'Chờ nhận bàn giao'
+                          {m.trangThai === "HOAN_THANH"
+                            ? "Đã hoàn thành"
+                            : m.trangThai === "PENDING_RECEIVE"
+                            ? "Chờ nhận bàn giao"
                             : overdue
-                            ? 'Quá giờ chưa chốt'
-                            : 'Đang mở'}
+                            ? "Quá giờ chưa chốt"
+                            : "Đang mở"}
                         </span>
                       </div>
 
                       <div className="mt-2.5 text-xs space-y-1 text-slate-600">
                         <div>
-                          Người giao: <strong className="text-slate-900">{m.nguoiGiao || '—'}</strong>
-                          {m.gioGiao ? ` (${m.gioGiao})` : ''}
+                          Người giao:{" "}
+                          <strong className="text-slate-900">
+                            {m.nguoiGiao || "—"}
+                          </strong>
+                          {m.gioGiao ? ` (${m.gioGiao})` : ""}
                         </div>
                         <div>
-                          Người nhận: <strong className="text-emerald-700">{m.nguoiNhan || '—'}</strong>
+                          Người nhận:{" "}
+                          <strong className="text-emerald-700">
+                            {m.nguoiNhan || "—"}
+                          </strong>
                         </div>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
-                      {m.trangThai === 'OPEN' && (
+                      {m.trangThai === "OPEN" && (
                         <>
                           <button
                             type="button"
@@ -5911,31 +6443,37 @@ export function MainApp() {
                             onClick={() => setClosingShiftModal(ca)}
                             className="flex-1 py-1.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase"
                           >
-                            Chốt Ca {ca} {pendingCnt > 0 ? `(${pendingCnt} chờ)` : ''}
+                            Chốt Ca {ca}{" "}
+                            {pendingCnt > 0 ? `(${pendingCnt} chờ)` : ""}
                           </button>
                         </>
                       )}
 
-                      {m.trangThai === 'PENDING_RECEIVE' && (
+                      {m.trangThai === "PENDING_RECEIVE" && (
                         <button
                           type="button"
                           disabled={isLockedByOtherUser}
-                          onClick={() => handleReceiveShiftHandover(selectedDate, ca)}
+                          onClick={() =>
+                            handleReceiveShiftHandover(selectedDate, ca)
+                          }
                           className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-black uppercase shadow-sm"
                         >
                           ✍️ Ký Nhận Bàn Giao Ca {ca}
                         </button>
                       )}
 
-                      {m.trangThai !== 'OPEN' && isAdmin && !isLockedByOtherUser && (
-                        <button
-                          type="button"
-                          onClick={() => handleAdminResetShift(ca)}
-                          className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold flex items-center gap-1"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" /> Mở khóa (Admin)
-                        </button>
-                      )}
+                      {m.trangThai !== "OPEN" &&
+                        isAdmin &&
+                        !isLockedByOtherUser && (
+                          <button
+                            type="button"
+                            onClick={() => handleAdminResetShift(ca)}
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold flex items-center gap-1"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" /> Mở khóa
+                            (Admin)
+                          </button>
+                        )}
                     </div>
                   </div>
                 );
@@ -5947,10 +6485,12 @@ export function MainApp() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-black uppercase text-slate-900">
-                    Bảng Điều Phối Tồn Kho BM.13 — Ngày {formatDateDisplay(selectedDate)}
+                    Bảng Điều Phối Tồn Kho BM.13 — Ngày{" "}
+                    {formatDateDisplay(selectedDate)}
                   </h3>
                   <p className="text-xs font-semibold text-slate-500">
-                    Cột &quot;Sử dụng&quot; tự động đếm từ BM.04 + Hàng đợi theo đúng từng Ca 1, 2, 3, 4.
+                    Cột &quot;Sử dụng&quot; tự động đếm từ BM.04 + Hàng đợi theo
+                    đúng từng Ca 1, 2, 3, 4.
                   </p>
                 </div>
                 <div className="w-full sm:w-96">
@@ -5958,7 +6498,9 @@ export function MainApp() {
                     type="text"
                     disabled={isLockedByOtherUser}
                     value={currentDayComputed.ghiChu}
-                    onChange={e => handleUpdateDayTonDauOrNote(undefined, e.target.value)}
+                    onChange={(e) =>
+                      handleUpdateDayTonDauOrNote(undefined, e.target.value)
+                    }
                     placeholder="Ghi chú tồn kho trong ngày..."
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold disabled:bg-slate-100"
                   />
@@ -5968,11 +6510,19 @@ export function MainApp() {
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-900 text-white text-[11px] font-black uppercase">
-                    <th className="py-2.5 px-3 text-left rounded-tl-xl">Tên Xét Nghiệm</th>
+                    <th className="py-2.5 px-3 text-left rounded-tl-xl">
+                      Tên Xét Nghiệm
+                    </th>
                     <th className="py-2.5 px-2 text-center">Cơ số</th>
-                    <th className="py-2.5 px-2 text-center bg-sky-900">Tồn Đầu Ngày</th>
-                    {([1, 2, 3, 4] as ShiftNumber[]).map(ca => (
-                      <th key={ca} colSpan={4} className="py-2.5 px-2 text-center border-l border-slate-700">
+                    <th className="py-2.5 px-2 text-center bg-sky-900">
+                      Tồn Đầu Ngày
+                    </th>
+                    {([1, 2, 3, 4] as ShiftNumber[]).map((ca) => (
+                      <th
+                        key={ca}
+                        colSpan={4}
+                        className="py-2.5 px-2 text-center border-l border-slate-700"
+                      >
                         Ca {ca} ({SHIFT_INFO[ca].timeRange})
                       </th>
                     ))}
@@ -5980,49 +6530,73 @@ export function MainApp() {
                   <tr className="bg-slate-100 text-[10px] font-black uppercase text-slate-600 border-b border-slate-200">
                     <th className="py-1.5 px-3 text-left" />
                     <th className="py-1.5 px-2 text-center" />
-                    <th className="py-1.5 px-2 text-center">{isAdmin ? '(Admin sửa)' : '(Tự động)'}</th>
-                    {([1, 2, 3, 4] as ShiftNumber[]).map(ca => (
+                    <th className="py-1.5 px-2 text-center">
+                      {isAdmin ? "(Admin sửa)" : "(Tự động)"}
+                    </th>
+                    {([1, 2, 3, 4] as ShiftNumber[]).map((ca) => (
                       <React.Fragment key={ca}>
-                        <th className="py-1.5 px-1.5 text-center border-l border-slate-200 text-emerald-700">+Bù</th>
-                        <th className="py-1.5 px-1.5 text-center text-purple-700">-QC</th>
-                        <th className="py-1.5 px-1.5 text-center text-rose-600">-Dùng</th>
-                        <th className="py-1.5 px-1.5 text-center text-sky-800">=Cuối</th>
+                        <th className="py-1.5 px-1.5 text-center border-l border-slate-200 text-emerald-700">
+                          +Bù
+                        </th>
+                        <th className="py-1.5 px-1.5 text-center text-purple-700">
+                          -QC
+                        </th>
+                        <th className="py-1.5 px-1.5 text-center text-rose-600">
+                          -Dùng
+                        </th>
+                        <th className="py-1.5 px-1.5 text-center text-sky-800">
+                          =Cuối
+                        </th>
                       </React.Fragment>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {stockTestsForUi.map(t => (
+                  {stockTestsForUi.map((t) => (
                     <tr key={t.code} className="hover:bg-slate-50">
-                      <td className="py-2 px-3 font-black text-slate-900">{t.name}</td>
-                      <td className="py-2 px-2 text-center font-bold text-slate-500">{t.quota}</td>
+                      <td className="py-2 px-3 font-black text-slate-900">
+                        {t.name}
+                      </td>
+                      <td className="py-2 px-2 text-center font-bold text-slate-500">
+                        {t.quota}
+                      </td>
                       <td className="py-2 px-2 text-center bg-sky-50/50">
                         {isAdmin && !isLockedByOtherUser ? (
                           <input
                             type="number"
                             value={currentDayComputed.tonDau[t.code] ?? 0}
-                            onChange={e => {
+                            onChange={(e) => {
                               const nextMap = {
                                 ...currentDayComputed.tonDau,
-                                [t.code]: clampInt(e.target.value, -99999, 999999)
+                                [t.code]: clampInt(
+                                  e.target.value,
+                                  -99999,
+                                  999999
+                                ),
                               };
                               handleUpdateDayTonDauOrNote(nextMap, undefined);
                             }}
                             className="w-16 px-1.5 py-1 rounded-lg border border-sky-300 text-center font-black text-sky-900 bg-white"
                           />
                         ) : (
-                          <span className="font-black text-sky-900">{currentDayComputed.tonDau[t.code] ?? 0}</span>
+                          <span className="font-black text-sky-900">
+                            {currentDayComputed.tonDau[t.code] ?? 0}
+                          </span>
                         )}
                       </td>
 
-                      {([1, 2, 3, 4] as ShiftNumber[]).map(ca => {
-                        const cell = currentDayComputed.shifts[ca]?.[t.code] || {
+                      {([1, 2, 3, 4] as ShiftNumber[]).map((ca) => {
+                        const cell = currentDayComputed.shifts[ca]?.[
+                          t.code
+                        ] || {
                           boiHoan: 0,
                           suDungQC: 0,
                           suDung: 0,
-                          tonCuoi: 0
+                          tonCuoi: 0,
                         };
-                        const closed = (isShiftClosed(selectedDate, ca) && !isAdmin) || isLockedByOtherUser;
+                        const closed =
+                          (isShiftClosed(selectedDate, ca) && !isAdmin) ||
+                          isLockedByOtherUser;
                         return (
                           <React.Fragment key={ca}>
                             <td className="py-1.5 px-1 text-center border-l border-slate-100">
@@ -6030,9 +6604,16 @@ export function MainApp() {
                                 type="number"
                                 min={0}
                                 disabled={closed}
-                                value={cell.boiHoan || ''}
+                                value={cell.boiHoan || ""}
                                 placeholder="0"
-                                onChange={e => handleUpdateShiftCell(ca, t.code, 'boiHoan', e.target.value)}
+                                onChange={(e) =>
+                                  handleUpdateShiftCell(
+                                    ca,
+                                    t.code,
+                                    "boiHoan",
+                                    e.target.value
+                                  )
+                                }
                                 className="w-12 px-1 py-1 rounded border border-emerald-200 text-center font-bold text-emerald-700 disabled:bg-slate-100"
                               />
                             </td>
@@ -6041,18 +6622,27 @@ export function MainApp() {
                                 type="number"
                                 min={0}
                                 disabled={closed}
-                                value={cell.suDungQC || ''}
+                                value={cell.suDungQC || ""}
                                 placeholder="0"
-                                onChange={e => handleUpdateShiftCell(ca, t.code, 'suDungQC', e.target.value)}
+                                onChange={(e) =>
+                                  handleUpdateShiftCell(
+                                    ca,
+                                    t.code,
+                                    "suDungQC",
+                                    e.target.value
+                                  )
+                                }
                                 className="w-12 px-1 py-1 rounded border border-purple-200 text-center font-bold text-purple-700 disabled:bg-slate-100"
                               />
                             </td>
                             <td className="py-1.5 px-1.5 text-center font-black text-rose-600">
-                              {cell.suDung > 0 ? cell.suDung : '–'}
+                              {cell.suDung > 0 ? cell.suDung : "–"}
                             </td>
                             <td
                               className={`py-1.5 px-1.5 text-center font-black ${
-                                cell.tonCuoi < 0 ? 'text-rose-600 bg-rose-50' : 'text-sky-800 bg-slate-50/70'
+                                cell.tonCuoi < 0
+                                  ? "text-rose-600 bg-rose-50"
+                                  : "text-sky-800 bg-slate-50/70"
                               }`}
                             >
                               {cell.tonCuoi}
@@ -6069,17 +6659,24 @@ export function MainApp() {
         )}
 
         {/* ==================== TAB 3: IN SỔ BM.04 ==================== */}
-        {activeTab === 'PRINT_BM04' && (
-          <PrintBm04 selectedDate={selectedDate} logs={bm04Logs} testsConfig={testsConfig} />
+        {activeTab === "PRINT_BM04" && (
+          <PrintBm04
+            selectedDate={selectedDate}
+            logs={bm04Logs}
+            testsConfig={testsConfig}
+          />
         )}
 
         {/* ==================== TAB 4: IN SỔ BM.13 ==================== */}
-        {activeTab === 'PRINT_BM13' && (
-          <PrintBm13 selectedDate={selectedDate} computed={currentDayComputed} />
+        {activeTab === "PRINT_BM13" && (
+          <PrintBm13
+            selectedDate={selectedDate}
+            computed={currentDayComputed}
+          />
         )}
 
         {/* ==================== TAB 5: QUẢN TRỊ ADMIN ==================== */}
-        {activeTab === 'ADMIN' && isAdmin && (
+        {activeTab === "ADMIN" && isAdmin && (
           <AdminPanel
             apiUrl={apiUrl}
             token={auth.token}
@@ -6087,12 +6684,15 @@ export function MainApp() {
             testsConfig={testsConfig}
             activeSession={activeSession}
             outboxCount={outbox.length}
-            onUpdateTestsConfig={nextTests => setTestsConfig(nextTests)}
+            onUpdateTestsConfig={(nextTests) => setTestsConfig(nextTests)}
             onForceUnlockSession={handleForceUnlockSession}
-            onApiUrlChanged={nextUrl => {
+            onApiUrlChanged={(nextUrl) => {
               setApiUrl(nextUrl);
-              setDataVersion('0');
-              notify('Đã chuyển sang kết nối Google Sheets mới thành công!', 'success');
+              setDataVersion("0");
+              notify(
+                "Đã chuyển sang kết nối Google Sheets mới thành công!",
+                "success"
+              );
             }}
             notify={notify}
           />
@@ -6114,10 +6714,15 @@ export function MainApp() {
         token={auth.token}
         userName={auth.user.name}
         onClose={() => setShowChangePwModal(false)}
-        onChanged={newToken => {
-          setAuth(prev => (prev ? { ...prev, token: newToken, mustChange: false } : prev));
+        onChanged={(newToken) => {
+          setAuth((prev) =>
+            prev ? { ...prev, token: newToken, mustChange: false } : prev
+          );
           setShowChangePwModal(false);
-          notify('Đổi mật khẩu thành công! Đang tải dữ liệu hệ thống...', 'success');
+          notify(
+            "Đổi mật khẩu thành công! Đang tải dữ liệu hệ thống...",
+            "success"
+          );
         }}
         onLogout={handleLogout}
       />
@@ -6128,10 +6733,10 @@ export function MainApp() {
         token={auth.token}
         mainUser={auth.user}
         onClose={() => setShowCheckerModal(false)}
-        onVerified={nextChecker => {
+        onVerified={(nextChecker) => {
           setChecker(nextChecker);
           setShowCheckerModal(false);
-          notify(`Đã xác thực Người kiểm tra: ${nextChecker.name}`, 'success');
+          notify(`Đã xác thực Người kiểm tra: ${nextChecker.name}`, "success");
         }}
       />
 
@@ -6148,7 +6753,7 @@ export function MainApp() {
           dateStr={selectedDate}
           computed={currentDayComputed}
           onClose={() => setReplenishShiftModal(null)}
-          onApply={map => handleApplyBulkReplenish(replenishShiftModal, map)}
+          onApply={(map) => handleApplyBulkReplenish(replenishShiftModal, map)}
         />
       )}
 
@@ -6159,7 +6764,11 @@ export function MainApp() {
           dateStr={selectedDate}
           computed={currentDayComputed}
           pendingCountOfShift={
-            pendingQueue.filter(p => p.ngayBC === selectedDate && Number(p.caTruc) === closingShiftModal).length
+            pendingQueue.filter(
+              (p) =>
+                p.ngayBC === selectedDate &&
+                Number(p.caTruc) === closingShiftModal
+            ).length
           }
           isAdmin={isAdmin}
           loading={closingLoading}
