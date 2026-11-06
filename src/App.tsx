@@ -3451,6 +3451,855 @@ function playTripleBeepAlert() {
   }
 }
 
+export interface ShiftSnapshotRow {
+  code: string;
+  name: string;
+  unit: string;
+  tonDau: number;
+  boiHoan: number;
+  suDungQC: number;
+  suDung: number;
+  tonCuoi: number;
+}
+
+export interface HandoverQrState {
+  qrToken: string;
+  qrPin: string;
+  date: string;
+  shift: ShiftNumber;
+  senderId: string;
+  senderName: string;
+  gioGiao: string;
+  shiftData?: Record<string, { boiHoan: number; suDungQC: number }>;
+  shiftSnapshot?: ShiftSnapshotRow[];
+  status: "WAITING_SCAN" | "VERIFYING" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+  verifierId?: string;
+  verifierName?: string;
+  rejectReason?: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface CompliancePrintState {
+  required: boolean;
+  requiredForUserId: string;
+  requiredForUserName: string;
+  senderName?: string;
+  date: string;
+  shift: ShiftNumber;
+  printedBm04: boolean;
+  printedBm13: boolean;
+  acceptedAt: number;
+}
+
+interface PcHandoverQrModalProps {
+  qrState: HandoverQrState | null;
+  nowMs: number;
+  cancelLoading: boolean;
+  onCancelAndUnlock: () => void;
+}
+
+function PcHandoverQrModal({
+  qrState,
+  nowMs,
+  cancelLoading,
+  onCancelAndUnlock,
+}: PcHandoverQrModalProps) {
+  const [useFallbackQrImg, setUseFallbackQrImg] = useState(false);
+
+  useEffect(() => {
+    setUseFallbackQrImg(false);
+  }, [qrState?.qrToken]);
+
+  if (!qrState) return null;
+
+  const baseUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}`
+      : "";
+  const mobileVerifyUrl = `${baseUrl}?handover_qr=${encodeURIComponent(
+    qrState.qrToken
+  )}&pin=${encodeURIComponent(qrState.qrPin)}`;
+
+  const primaryQrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=${encodeURIComponent(
+    mobileVerifyUrl
+  )}`;
+  const backupQrSrc = `https://quickchart.io/qr?size=280&margin=2&text=${encodeURIComponent(
+    mobileVerifyUrl
+  )}`;
+
+  const remainMs = Math.max(0, Number(qrState.expiresAt || 0) - nowMs);
+  const isVerifying = qrState.status === "VERIFYING";
+
+  return (
+    <div className="no-print fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-sky-400 space-y-5 text-center animate-in fade-in zoom-in-95 duration-200">
+        {/* Header trạng thái */}
+        <div className="space-y-1.5">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sky-100 text-sky-900 text-xs font-black uppercase tracking-wider">
+            <Clock className="w-4 h-4 text-sky-600 animate-spin" />
+            <span>
+              Chờ Đối Soát Di Động • Ca {qrState.shift} (
+              {formatDateDisplay(qrState.date)})
+            </span>
+          </div>
+          <h3 className="text-lg font-black uppercase text-slate-900">
+            Quét Mã QR Để Kiểm Đếm Tủ Hóa Chất
+          </h3>
+          <p className="text-xs font-semibold text-slate-600">
+            Người giao:{" "}
+            <strong className="text-slate-900">{qrState.senderName}</strong> (
+            {qrState.gioGiao})
+          </p>
+        </div>
+
+        {/* Trạng thái trực tiếp khi người nhận đã quét QR */}
+        {isVerifying ? (
+          <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-emerald-400 text-emerald-950 space-y-1 animate-pulse">
+            <div className="text-xs font-black uppercase text-emerald-800 flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Đã kết nối thiết bị di động!
+            </div>
+            <div className="text-xs font-semibold">
+              Đồng nghiệp{" "}
+              <strong className="font-black underline">
+                {qrState.verifierName || "Người nhận"}
+              </strong>{" "}
+              đang cầm điện thoại tích Checklist ngoài tủ hóa chất...
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold">
+            Người nhận bàn giao dùng Camera điện thoại (hoặc Zalo) quét mã QR
+            bên dưới để mở bảng Checklist kiểm đếm tại tủ lạnh.
+          </div>
+        )}
+
+        {/* Khung chứa Big QR Code */}
+        <div className="flex flex-col items-center justify-center">
+          <div className="p-3 bg-white rounded-3xl border-4 border-slate-900 shadow-lg inline-block">
+            <img
+              src={useFallbackQrImg ? backupQrSrc : primaryQrSrc}
+              onError={() => setUseFallbackQrImg(true)}
+              alt="QR Bàn Giao Ca"
+              className="w-60 h-60 object-contain mx-auto"
+            />
+          </div>
+        </div>
+
+        {/* Mã PIN 4 số dự phòng (Đề xuất 1) */}
+        <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-1 shadow-inner">
+          <div className="text-[10px] font-black uppercase tracking-widest text-sky-300">
+            Mã PIN Dự Phòng (Nhập trên điện thoại nếu Camera mờ/chói)
+          </div>
+          <div className="text-3xl font-black tracking-[0.35em] text-amber-300 font-mono pl-3">
+            {qrState.qrPin}
+          </div>
+        </div>
+
+        {/* Đồng hồ đếm ngược 10 phút chống kẹt phiên (Timeout TTL) */}
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-600">
+          <span>Tự động mở khóa nếu không phản hồi sau:</span>
+          <span className="font-mono text-sm font-black text-rose-600">
+            {formatCountdownMmSs(remainMs)}
+          </span>
+        </div>
+
+        {/* Nút hủy chốt dành cho người giao nếu phát hiện sai số muốn tự sửa ngay trên PC */}
+        <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+          <button
+            type="button"
+            disabled={cancelLoading}
+            onClick={onCancelAndUnlock}
+            className="w-full py-2.5 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 disabled:opacity-50 text-rose-700 border border-rose-200 text-xs font-black uppercase tracking-wider transition"
+          >
+            {cancelLoading
+              ? "Đang mở khóa lại ca trực..."
+              : "↺ Hủy Chốt & Mở Khóa Ngay Để Sửa Lại Số Liệu Trên PC"}
+          </button>
+          <span className="text-[11px] font-semibold text-slate-400">
+            Màn hình PC này sẽ tự động đăng xuất ngay khi người nhận bấm
+            &quot;Xác nhận Nhận bàn giao&quot; trên điện thoại.
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ====== GIAO DIỆN MOBILE CHECKLIST KIỂM ĐẾM TỦ HÓA CHẤT & BẮT BUỘC ĐĂNG XUẤT ====== */
+
+const QUICK_REJECT_REASONS = [
+  "Lệch số lượng tồn thực tế trong tủ hóa chất",
+  "Chưa nhập hoặc nhập sai số lượng Bồi hoàn trong ca",
+  "Chưa nhập số lượng Sử dụng QC",
+  "Còn mẫu bệnh nhân thực tế chưa vào sổ BM.04",
+];
+
+interface MobileHandoverChecklistModalProps {
+  qrState: HandoverQrState | null;
+  fallbackRows: ShiftSnapshotRow[];
+  verifierName: string;
+  isOnline: boolean;
+  submitting: boolean;
+  acceptedMustLogout: boolean;
+  onAcceptHandover: () => void;
+  onRejectHandover: (reason: string) => void;
+  onMandatoryMobileLogout: () => void;
+  onCloseWithoutAction: () => void;
+}
+
+function MobileHandoverChecklistModal({
+  qrState,
+  fallbackRows,
+  verifierName,
+  isOnline,
+  submitting,
+  acceptedMustLogout,
+  onAcceptHandover,
+  onRejectHandover,
+  onMandatoryMobileLogout,
+  onCloseWithoutAction,
+}: MobileHandoverChecklistModalProps) {
+  const rows: ShiftSnapshotRow[] = useMemo(() => {
+    if (qrState?.shiftSnapshot && qrState.shiftSnapshot.length > 0) {
+      return qrState.shiftSnapshot;
+    }
+    return fallbackRows;
+  }, [qrState?.shiftSnapshot, fallbackRows]);
+
+  const storageKey = qrState?.qrToken ? `QLTN_QR_CHECK_${qrState.qrToken}` : "";
+
+  const [checkedMap, setCheckedMap] = useState<Record<string, boolean>>({});
+  const [showRejectBox, setShowRejectBox] = useState<boolean>(false);
+  const [selectedQuickReason, setSelectedQuickReason] = useState<string>(
+    QUICK_REJECT_REASONS[0]
+  );
+  const [customRejectDetail, setCustomRejectDetail] = useState<string>("");
+
+  // Khôi phục trạng thái tích chọn từ localStorage (Chống mất dấu tick khi ra góc khuất kho lạnh yếu mạng)
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved) {
+        setCheckedMap(JSON.parse(saved) || {});
+      } else {
+        setCheckedMap({});
+      }
+    } catch {
+      setCheckedMap({});
+    }
+    setShowRejectBox(false);
+    setCustomRejectDetail("");
+  }, [storageKey]);
+
+  const toggleCheckItem = (code: string) => {
+    setCheckedMap((prev) => {
+      const next = { ...prev, [code]: !prev[code] };
+      if (storageKey) {
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+  };
+
+  if (!qrState) return null;
+
+  const totalCount = rows.length;
+  const checkedCount = rows.filter((r) => Boolean(checkedMap[r.code])).length;
+  const isAllChecked = totalCount > 0 && checkedCount === totalCount;
+  const progressPct =
+    totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
+
+  // MÀN HÌNH BẮT BUỘC ĐĂNG XUẤT TRÊN ĐIỆN THOẠI SAU KHI KÝ NHẬN THÀNH CÔNG
+  if (acceptedMustLogout) {
+    return (
+      <div className="no-print fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+        <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-4 border-emerald-500 text-center space-y-5">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+            <CheckCircle2 className="w-10 h-10" />
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
+              Hoàn tất đối soát 100%
+            </span>
+            <h3 className="text-lg font-black uppercase text-slate-900">
+              Ký Nhận Bàn Giao Ca {qrState.shift} Thành Công!
+            </h3>
+            <p className="text-xs font-semibold text-slate-600">
+              Ngày {formatDateDisplay(qrState.date)} • Người nhận:{" "}
+              <strong className="text-emerald-700">{verifierName}</strong>
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-400 text-amber-950 text-left space-y-2">
+            <div className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              Bước tiếp theo (Bắt buộc):
+            </div>
+            <p className="text-xs font-semibold leading-relaxed">
+              1. Vui lòng bấm nút{" "}
+              <strong className="text-rose-700 underline">
+                Đăng xuất thiết bị di động
+              </strong>{" "}
+              ngay bên dưới để giải phóng tài khoản trên điện thoại.
+            </p>
+            <p className="text-xs font-semibold leading-relaxed">
+              2. Mời bạn bước ra máy tính (PC) đăng nhập để bắt đầu phiên làm
+              việc mới (Nếu không đăng xuất trên điện thoại sẽ bị chặn trùng
+              phiên trên PC).
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (storageKey) {
+                try {
+                  window.localStorage.removeItem(storageKey);
+                } catch {}
+              }
+              onMandatoryMobileLogout();
+            }}
+            className="w-full py-4 px-5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-sm uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 animate-bounce"
+          >
+            <LogOut className="w-5 h-5" />
+            Đăng Xuất Khỏi Điện Thoại Ngay
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="no-print fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col justify-between overflow-hidden">
+      {/* Header cố định trên điện thoại */}
+      <div className="bg-slate-900 text-white px-4 py-3 border-b border-slate-700 shadow-md shrink-0">
+        <div className="max-w-lg mx-auto space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="px-2.5 py-0.5 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-300 text-[11px] font-black uppercase">
+              Checklist Tủ Hóa Chất • Ca {qrState.shift} (
+              {formatDateDisplay(qrState.date)})
+            </span>
+            {!isOnline && (
+              <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black uppercase">
+                Ngoại tuyến (Đã lưu tạm)
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-300">
+              Giao: <strong className="text-white">{qrState.senderName}</strong>
+            </span>
+            <span className="text-slate-300">
+              Nhận: <strong className="text-emerald-300">{verifierName}</strong>
+            </span>
+          </div>
+
+          {/* Thanh tiến trình tích chọn 100% */}
+          <div className="space-y-1 pt-0.5">
+            <div className="flex items-center justify-between text-[11px] font-black">
+              <span
+                className={isAllChecked ? "text-emerald-400" : "text-amber-300"}
+              >
+                {isAllChecked
+                  ? "✅ Đã kiểm đếm đủ 100% danh mục test!"
+                  : `👉 Vui lòng đếm và tích đủ từng hàng: ${checkedCount}/${totalCount} (${progressPct}%)`}
+              </span>
+              {checkedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckedMap({});
+                    if (storageKey) {
+                      try {
+                        window.localStorage.removeItem(storageKey);
+                      } catch {}
+                    }
+                  }}
+                  className="text-[10px] font-bold text-slate-400 underline"
+                >
+                  Bỏ tích lại
+                </button>
+              )}
+            </div>
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  isAllChecked ? "bg-emerald-500" : "bg-sky-500"
+                }`}
+                style={{ width: `${Math.max(4, progressPct)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Danh sách Card kiểm đếm tối ưu cho màn hình dọc điện thoại */}
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="max-w-lg mx-auto space-y-2.5 pb-6">
+          {rows.map((r, idx) => {
+            const isChecked = Boolean(checkedMap[r.code]);
+            const totalUsed =
+              (Number(r.suDung) || 0) + (Number(r.suDungQC) || 0);
+            return (
+              <div
+                key={r.code}
+                onClick={() => toggleCheckItem(r.code)}
+                className={`rounded-2xl p-3.5 border-2 transition cursor-pointer select-none flex items-center justify-between gap-3 shadow-sm ${
+                  isChecked
+                    ? "bg-emerald-50/95 border-emerald-500 text-slate-900"
+                    : "bg-white border-slate-200 hover:border-sky-300 text-slate-800"
+                }`}
+              >
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 text-[10px] font-black">
+                      #{idx + 1}
+                    </span>
+                    <span className="text-sm font-black uppercase truncate text-slate-900">
+                      {r.name}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1.5 pt-1 text-[11px] font-semibold">
+                    <div className="bg-slate-100 rounded-lg px-2 py-1 text-center">
+                      <span className="block text-[9px] uppercase text-slate-500 font-bold">
+                        Tồn đầu
+                      </span>
+                      <span className="font-black text-slate-800">
+                        {r.tonDau}
+                      </span>
+                    </div>
+                    <div className="bg-emerald-100/70 rounded-lg px-2 py-1 text-center">
+                      <span className="block text-[9px] uppercase text-emerald-700 font-bold">
+                        +Bồi hoàn
+                      </span>
+                      <span className="font-black text-emerald-700">
+                        {r.boiHoan > 0 ? `+${r.boiHoan}` : "0"}
+                      </span>
+                    </div>
+                    <div className="bg-rose-100/70 rounded-lg px-2 py-1 text-center">
+                      <span className="block text-[9px] uppercase text-rose-700 font-bold">
+                        -Đã dùng
+                      </span>
+                      <span className="font-black text-rose-600">
+                        {totalUsed > 0 ? `-${totalUsed}` : "0"}
+                      </span>
+                    </div>
+                    <div className="bg-sky-100 rounded-lg px-2 py-1 text-center border border-sky-300">
+                      <span className="block text-[9px] uppercase text-sky-800 font-black">
+                        Tồn cuối
+                      </span>
+                      <span className="text-sm font-black text-sky-900">
+                        {r.tonCuoi}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ô Checkbox to rõ cho màn hình cảm ứng */}
+                <div
+                  className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center shrink-0 transition ${
+                    isChecked
+                      ? "bg-emerald-600 border-emerald-600 text-white shadow-md scale-105"
+                      : "bg-slate-50 border-slate-300 text-transparent"
+                  }`}
+                >
+                  <Check className="w-6 h-6 stroke-[3]" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Cụm nút hành động cố định dưới đáy điện thoại */}
+      <div className="bg-white border-t-2 border-slate-200 p-3.5 shadow-2xl shrink-0">
+        <div className="max-w-lg mx-auto space-y-2.5">
+          {showRejectBox ? (
+            <div className="p-3.5 rounded-2xl bg-rose-50 border-2 border-rose-300 space-y-2.5">
+              <div className="text-xs font-black uppercase text-rose-900 flex items-center justify-between">
+                <span>
+                  Chọn lý do không nhận bàn giao (Để mở khóa cho PC sửa):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowRejectBox(false)}
+                  className="text-[11px] font-bold text-slate-500 underline"
+                >
+                  Đóng
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                {QUICK_REJECT_REASONS.map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => setSelectedQuickReason(reason)}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold border transition ${
+                      selectedQuickReason === reason
+                        ? "bg-rose-600 text-white border-rose-600"
+                        : "bg-white text-slate-700 border-slate-200"
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="text"
+                value={customRejectDetail}
+                onChange={(e) => setCustomRejectDetail(e.target.value)}
+                placeholder="Ghi chú thêm tên test lệch (VD: NS1 thực đếm còn 18)..."
+                className="w-full px-3 py-2 rounded-xl border border-rose-300 text-xs font-bold bg-white focus:outline-none"
+              />
+
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => {
+                  const finalReason = customRejectDetail.trim()
+                    ? `${selectedQuickReason} (${customRejectDetail.trim()})`
+                    : selectedQuickReason;
+                  if (
+                    window.confirm(
+                      `Xác nhận TỪ CHỐI NHẬN BÀN GIAO và mở khóa Ca ${qrState.shift} để người giao điều chỉnh lại số liệu trên PC?`
+                    )
+                  ) {
+                    if (storageKey) {
+                      try {
+                        window.localStorage.removeItem(storageKey);
+                      } catch {}
+                    }
+                    onRejectHandover(finalReason);
+                  }
+                }}
+                className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider shadow-md"
+              >
+                {submitting
+                  ? "Đang mở khóa ca trực..."
+                  : "🔓 Xác Nhận Từ Chối & Mở Khóa Cho PC Sửa Lại"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Nút Xác nhận Nhận bàn giao: Chỉ hiện/mở khóa khi đã tick đủ 100% */}
+              {isAllChecked ? (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={onAcceptHandover}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-black uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  {submitting
+                    ? "Đang ký nhận bàn giao..."
+                    : `Xác Nhận Nhận Bàn Giao Ca ${qrState.shift} (100%)`}
+                </button>
+              ) : (
+                <div className="w-full py-2.5 px-3 rounded-xl bg-slate-100 border border-slate-200 text-center text-[11px] font-bold text-slate-500">
+                  🔒 Nút &quot;Xác nhận Nhận bàn giao&quot; sẽ hiện ra khi bạn
+                  tích kiểm đếm đủ {totalCount}/{totalCount} hàng test.
+                </div>
+              )}
+
+              <div className="grid grid-cols-12 gap-2">
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => setShowRejectBox(true)}
+                  className="col-span-8 py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-black uppercase"
+                >
+                  ❌ Không Nhận Bàn Giao (Mở khóa sửa)
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={onCloseWithoutAction}
+                  className="col-span-4 py-2.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold"
+                >
+                  Đóng tạm
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ====== MODAL NHẬP MÃ PIN 4 SỐ DỰ PHÒNG TRÊN ĐIỆN THOẠI ====== */
+
+interface ManualPinClaimModalProps {
+  open: boolean;
+  loading: boolean;
+  onClose: () => void;
+  onSubmitPin: (pin: string) => void;
+}
+
+function ManualPinClaimModal({
+  open,
+  loading,
+  onClose,
+  onSubmitPin,
+}: ManualPinClaimModalProps) {
+  const [pinInput, setPinInput] = useState("");
+
+  useEffect(() => {
+    if (open) setPinInput("");
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div className="no-print fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-center">
+        <h3 className="text-base font-black uppercase text-slate-900">
+          Nhập Mã PIN 4 Số Nhận Bàn Giao Ca
+        </h3>
+        <p className="text-xs font-semibold text-slate-500">
+          Nhập 4 chữ số Mã PIN đang hiển thị dưới mã QR trên màn hình PC để mở
+          bảng Checklist kiểm đếm.
+        </p>
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={4}
+          value={pinInput}
+          onChange={(e) =>
+            setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))
+          }
+          placeholder="••••"
+          className="w-full py-3 rounded-2xl border-2 border-sky-400 text-center text-3xl font-black tracking-[0.4em] text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+        />
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            disabled={pinInput.length < 4 || loading}
+            onClick={() => onSubmitPin(pinInput)}
+            className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase shadow-md"
+          >
+            {loading ? "Đang mở..." : "Mở Checklist"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ====== KHÓA CỨNG TUÂN THỦ ISO 15189: BẮT BUỘC IN ĐỦ 2 BIỂU MẪU (BM.04 & BM.13) ====== */
+
+interface CompliancePrintLockModalProps {
+  state: CompliancePrintState | null;
+  activeTab: TabKey;
+  printingForm: "BM04" | "BM13" | null;
+  onTriggerPrintForm: (form: "BM04" | "BM13") => void;
+}
+
+function CompliancePrintLockModal({
+  state,
+  activeTab,
+  printingForm,
+  onTriggerPrintForm,
+}: CompliancePrintLockModalProps) {
+  const [minimizedOnPrintTab, setMinimizedOnPrintTab] = useState(false);
+
+  if (!state || !state.required) return null;
+
+  const isOnPrintPreview =
+    activeTab === "PRINT_BM04" || activeTab === "PRINT_BM13";
+
+  // Nếu đang ở Tab Xem trước bản in và người dùng bấm thu gọn để chỉnh bộ lọc in, hiện thanh nổi cố định trên cùng
+  if (isOnPrintPreview && minimizedOnPrintTab) {
+    return (
+      <div className="no-print fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-2xl w-[95%] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border-2 border-amber-400 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-bold">
+          <span className="text-amber-300 font-black uppercase">
+            ⚠️ Khóa cứng bắt buộc in 2 biểu mẫu (Ca {state.shift} -{" "}
+            {formatDateDisplay(state.date)}):
+          </span>{" "}
+          BM.04 [{state.printedBm04 ? "✅ Đã in" : "⏳ Chưa in"}] • BM.13 [
+          {state.printedBm13 ? "✅ Đã in" : "⏳ Chưa in"}]
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onTriggerPrintForm("BM04")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase ${
+              state.printedBm04
+                ? "bg-emerald-700 text-white"
+                : "bg-amber-500 text-slate-950"
+            }`}
+          >
+            🖨️ In BM.04
+          </button>
+          <button
+            type="button"
+            onClick={() => onTriggerPrintForm("BM13")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase ${
+              state.printedBm13
+                ? "bg-emerald-700 text-white"
+                : "bg-amber-500 text-slate-950"
+            }`}
+          >
+            🖨️ In BM.13
+          </button>
+          <button
+            type="button"
+            onClick={() => setMinimizedOnPrintTab(false)}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-700 text-[11px] font-bold"
+          >
+            Mở rộng
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="no-print fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-4 border-amber-500 space-y-5 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-inner">
+          <Printer className="w-8 h-8" />
+        </div>
+
+        <div className="space-y-1.5">
+          <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-black uppercase">
+            Khóa Cứng Tuân Thủ ISO 15189
+          </span>
+          <h3 className="text-lg font-black uppercase text-slate-900 leading-snug">
+            Bạn Phải In Cả 2 Biểu Mẫu Mới Có Thể Bắt Đầu Phiên Làm Việc Mới!
+          </h3>
+          <p className="text-xs font-semibold text-slate-600">
+            Ca trực vừa nhận bàn giao:{" "}
+            <strong className="text-slate-900">
+              Ca {state.shift} ({formatDateDisplay(state.date)})
+            </strong>{" "}
+            • Người nhận:{" "}
+            <strong className="text-emerald-700">
+              {state.requiredForUserName}
+            </strong>
+          </p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-bold text-left leading-relaxed">
+          Mọi chức năng tiếp nhận bệnh nhân, nhập kết quả và điều chỉnh tồn kho
+          đang được{" "}
+          <strong className="text-rose-700 underline">
+            khóa cứng tạm thời
+          </strong>
+          . Hệ thống sẽ tự động mở khóa ngay sau khi bạn bấm in hoàn tất 2 biểu
+          mẫu bên dưới:
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Nút 1: In Sổ BM.04 */}
+          <button
+            type="button"
+            disabled={printingForm !== null}
+            onClick={() => onTriggerPrintForm("BM04")}
+            className={`p-4 rounded-2xl border-2 text-left transition flex flex-col justify-between gap-2 shadow-sm ${
+              state.printedBm04
+                ? "bg-emerald-50 border-emerald-500 text-emerald-950"
+                : "bg-sky-600 hover:bg-sky-500 border-sky-600 text-white shadow-lg"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase opacity-90">
+                Biểu mẫu 1
+              </span>
+              {state.printedBm04 ? (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-black uppercase">
+                  ✓ Đã in xong
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[10px] font-black uppercase">
+                  Bắt buộc in
+                </span>
+              )}
+            </div>
+            <div className="text-sm font-black uppercase flex items-center gap-1.5">
+              <Printer className="w-4 h-4 shrink-0" />
+              <span>
+                {printingForm === "BM04"
+                  ? "Đang mở lệnh in..."
+                  : "1. In Sổ BM.04"}
+              </span>
+            </div>
+            <div className="text-[11px] font-semibold opacity-85">
+              Sổ lưu kết quả xét nghiệm ngày {formatDateDisplay(state.date)}
+            </div>
+          </button>
+
+          {/* Nút 2: In Sổ BM.13 */}
+          <button
+            type="button"
+            disabled={printingForm !== null}
+            onClick={() => onTriggerPrintForm("BM13")}
+            className={`p-4 rounded-2xl border-2 text-left transition flex flex-col justify-between gap-2 shadow-sm ${
+              state.printedBm13
+                ? "bg-emerald-50 border-emerald-500 text-emerald-950"
+                : "bg-indigo-600 hover:bg-indigo-500 border-indigo-600 text-white shadow-lg"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase opacity-90">
+                Biểu mẫu 2
+              </span>
+              {state.printedBm13 ? (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-black uppercase">
+                  ✓ Đã in xong
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[10px] font-black uppercase">
+                  Bắt buộc in
+                </span>
+              )}
+            </div>
+            <div className="text-sm font-black uppercase flex items-center gap-1.5">
+              <Printer className="w-4 h-4 shrink-0" />
+              <span>
+                {printingForm === "BM13"
+                  ? "Đang mở lệnh in..."
+                  : "2. In Sổ BM.13"}
+              </span>
+            </div>
+            <div className="text-[11px] font-semibold opacity-85">
+              Sổ bàn giao tồn kho hóa chất 4 ca
+            </div>
+          </button>
+        </div>
+
+        {isOnPrintPreview && (
+          <button
+            type="button"
+            onClick={() => setMinimizedOnPrintTab(true)}
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 underline"
+          >
+            👁️ Thu gọn bảng này xuống đáy màn hình để xem trước biểu mẫu
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function MainApp() {
   const [apiUrl, setApiUrl] = usePersistentState<string>(
     STORAGE_KEYS.API_URL,
@@ -3604,6 +4453,43 @@ export function MainApp() {
   const [closingShiftModal, setClosingShiftModal] =
     useState<ShiftNumber | null>(null);
   const [closingLoading, setClosingLoading] = useState(false);
+
+  // State điều phối QR Bàn giao ca & Khóa cứng in ấn tuân thủ ISO 15189
+  const [handoverQrState, setHandoverQrState] =
+    useState<HandoverQrState | null>(null);
+  const [qrNowMs, setQrNowMs] = useState<number>(() => Date.now());
+  const [cancelQrLoading, setCancelQrLoading] = useState<boolean>(false);
+  const [compliancePrintState, setCompliancePrintState] =
+    useState<CompliancePrintState | null>(null);
+
+  // State cho Mobile Checklist khi quét QR hoặc nhập PIN 4 số
+  const [mobileQrSession, setMobileQrSession] =
+    useState<HandoverQrState | null>(null);
+  const [mobileSubmitting, setMobileSubmitting] = useState<boolean>(false);
+  const [mobileAcceptedMustLogout, setMobileAcceptedMustLogout] =
+    useState<boolean>(false);
+  const [showManualPinModal, setShowManualPinModal] = useState<boolean>(false);
+  const [printingFormLock, setPrintingFormLock] = useState<
+    "BM04" | "BM13" | null
+  >(null);
+
+  // Bắt tham số ?handover_qr=...&pin=... từ Camera điện thoại (Lưu vào sessionStorage nếu chưa đăng nhập)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const qrToken = params.get("handover_qr");
+    const qrPin = params.get("pin");
+    if (qrToken || qrPin) {
+      try {
+        window.sessionStorage.setItem(
+          "PENDING_QR_HANDOVER_CLAIM",
+          JSON.stringify({ qrToken: qrToken || "", qrPin: qrPin || "" })
+        );
+      } catch {}
+      const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  }, []);
 
   const notify = useCallback(
     (message: string, type: "success" | "error" | "info" = "info") => {
@@ -4880,15 +5766,32 @@ export function MainApp() {
       string,
       { boiHoan: number; suDungQC: number }
     > = {};
+    const shiftSnapshot: ShiftSnapshotRow[] = [];
+
     currentDayComputed.tests.forEach((t) => {
-      if (!isStockTestCode(t.code)) return;
+      if (!isStockTestCode(t.code) || t.noStock) return;
+      const prevEnd =
+        shift === 1
+          ? currentDayComputed.tonDau[t.code] ?? 0
+          : currentDayComputed.shifts[(shift - 1) as ShiftNumber]?.[t.code]
+              ?.tonCuoi ?? 0;
       const c = currentDayComputed.shifts[shift]?.[t.code] || {
         boiHoan: 0,
         suDungQC: 0,
         suDung: 0,
-        tonCuoi: 0,
+        tonCuoi: prevEnd,
       };
       shiftCellsPayload[t.code] = { boiHoan: c.boiHoan, suDungQC: c.suDungQC };
+      shiftSnapshot.push({
+        code: t.code,
+        name: t.name,
+        unit: t.unit,
+        tonDau: prevEnd,
+        boiHoan: c.boiHoan,
+        suDungQC: c.suDungQC,
+        suDung: c.suDung,
+        tonCuoi: c.tonCuoi,
+      });
     });
 
     const gioGiao = formatVnTimeNow();
@@ -4905,6 +5808,7 @@ export function MainApp() {
         op: "close",
         gioGiao,
         shiftData: shiftCellsPayload,
+        shiftSnapshot,
         sessionEpoch: sessionEpoch || undefined,
       },
       auth.token
@@ -4922,16 +5826,147 @@ export function MainApp() {
     }
 
     setClosingShiftModal(null);
-    if (!isSessionHeldByOther) {
-      await rpcCall(apiUrl, "clearSession", {}, auth.token);
+
+    // Hiển thị Màn hình Mã QR động + Mã PIN 4 số trên PC và giữ phiên chờ điện thoại đối soát
+    if (res.body.handoverQr) {
+      setQrNowMs(Date.now());
+      setHandoverQrState(res.body.handoverQr as HandoverQrState);
+      notify(
+        `Đã khởi tạo Mã QR bàn giao Ca ${shift} (PIN: ${res.body.handoverQr.qrPin}). Vui lòng dùng điện thoại quét mã để kiểm đếm tại tủ hóa chất!`,
+        "info"
+      );
+    } else {
+      await syncFromCloud(true, selectedDate);
     }
-    setChecker(null);
-    setAuth(null);
-    notify(
-      `Đã chốt bàn giao Ca ${shift} thành công và đăng xuất an toàn.`,
-      "success"
-    );
   };
+
+  // Người giao chủ động bấm hủy màn hình QR trên PC để mở khóa sửa lại số liệu
+  const handleCancelQrFromPc = useCallback(async () => {
+    if (!auth || !handoverQrState) return;
+    if (
+      !window.confirm(
+        "Bạn muốn hủy mã QR đang chờ và mở khóa lại ca trực để chỉnh sửa số liệu trên PC?"
+      )
+    ) {
+      return;
+    }
+    setCancelQrLoading(true);
+    const res = await rpcCall(
+      apiUrl,
+      "shiftOp",
+      {
+        ngayBC: handoverQrState.date,
+        caTruc: handoverQrState.shift,
+        op: "reject",
+        rejectReason:
+          "Người giao chủ động hủy màn hình chờ QR trên PC để điều chỉnh lại số liệu",
+      },
+      auth.token
+    );
+    setCancelQrLoading(false);
+    if (!res.net || res.body.status !== "success") {
+      notify(
+        res.body.message || "Không thể hủy chốt ca lúc này. Vui lòng thử lại.",
+        "error"
+      );
+      return;
+    }
+    setHandoverQrState(null);
+    await syncFromCloud(true, selectedDate);
+    notify(
+      `Đã hủy chốt và mở khóa lại Ca ${handoverQrState.shift} để bạn điều chỉnh số liệu.`,
+      "info"
+    );
+  }, [auth, handoverQrState, apiUrl, selectedDate, notify, syncFromCloud]);
+
+  // Bộ đếm thời gian 1 giây & Polling 3.5 giây khi màn hình PC đang mở bảng QR chờ đối soát
+  useEffect(() => {
+    if (!auth || !handoverQrState) return;
+    if (
+      handoverQrState.status !== "WAITING_SCAN" &&
+      handoverQrState.status !== "VERIFYING"
+    )
+      return;
+
+    const secTimer = window.setInterval(() => {
+      setQrNowMs(Date.now());
+    }, 1000);
+
+    const pollTimer = window.setInterval(async () => {
+      const res = await rpcCall(
+        apiUrl,
+        "shiftOp",
+        { op: "qr_status" },
+        auth.token
+      );
+      if (!res.net || res.body.status !== "success") return;
+
+      const remoteQr = res.body.handoverQr as HandoverQrState | null;
+      if (!remoteQr) {
+        setHandoverQrState(null);
+        syncFromCloud(true, selectedDate);
+        return;
+      }
+
+      if (remoteQr.status === "ACCEPTED") {
+        // Người nhận đã tick đủ 100% và bấm Nhận bàn giao trên điện thoại -> Tự động đăng xuất PC!
+        setHandoverQrState(null);
+        setChecker(null);
+        setAuth(null);
+        notify(
+          `Đồng nghiệp [${
+            remoteQr.verifierName || "Người nhận"
+          }] đã ký nhận bàn giao Ca ${
+            remoteQr.shift
+          } thành công! Màn hình PC đã tự động đăng xuất.`,
+          "success"
+        );
+        return;
+      }
+
+      if (remoteQr.status === "REJECTED") {
+        // Người nhận bấm Không nhận bàn giao trên điện thoại -> Tự động mở khóa trên PC cho người giao sửa!
+        setHandoverQrState(null);
+        await syncFromCloud(true, selectedDate);
+        notify(
+          `⚠️ [${
+            remoteQr.verifierName || "Người nhận"
+          }] KHÔNG NHẬN BÀN GIAO Ca ${remoteQr.shift}. Lý do: "${
+            remoteQr.rejectReason || "Lệch số liệu"
+          }". Ca trực đã tự động mở khóa để bạn sửa lại!`,
+          "error"
+        );
+        return;
+      }
+
+      if (remoteQr.status === "EXPIRED") {
+        // Quá 10 phút không phản hồi -> Tự động mở khóa lại ca trực trên PC
+        setHandoverQrState(null);
+        await syncFromCloud(true, selectedDate);
+        notify(
+          `⏰ Mã QR đối soát Ca ${remoteQr.shift} đã quá hạn 10 phút không phản hồi. Hệ thống đã tự động mở khóa lại ca trực!`,
+          "error"
+        );
+        return;
+      }
+
+      setHandoverQrState(remoteQr);
+    }, 3500);
+
+    return () => {
+      window.clearInterval(secTimer);
+      window.clearInterval(pollTimer);
+    };
+  }, [
+    auth,
+    handoverQrState,
+    apiUrl,
+    selectedDate,
+    notify,
+    setChecker,
+    setAuth,
+    syncFromCloud,
+  ]);
 
   const handleReceiveShiftHandover = async (
     targetDate: string,
@@ -5083,6 +6118,240 @@ export function MainApp() {
     () => outbox.filter((x) => x.paused).length,
     [outbox]
   );
+  // Đồng bộ trạng thái Khóa cứng In ấn & Tự động mở Mobile Checklist nếu điện thoại vừa quét mã QR
+  const claimQrHandoverSession = useCallback(
+    async (qrToken: string, qrPin: string) => {
+      if (!auth) return;
+      setMobileSubmitting(true);
+      const res = await rpcCall(
+        apiUrl,
+        "shiftOp",
+        { op: "claim_qr", qrToken, qrPin },
+        auth.token
+      );
+      setMobileSubmitting(false);
+
+      if (!res.net || res.body.status !== "success" || !res.body.handoverQr) {
+        notify(
+          res.body.message ||
+            "Không thể mở phiên đối soát QR. Vui lòng kiểm tra lại mã trên PC!",
+          "error"
+        );
+        return;
+      }
+
+      setShowManualPinModal(false);
+      setMobileAcceptedMustLogout(false);
+      setMobileQrSession(res.body.handoverQr as HandoverQrState);
+      notify(
+        `Đã mở Checklist kiểm đếm Ca ${res.body.handoverQr.shift}. Vui lòng đếm và tích đủ 100% các hàng test!`,
+        "info"
+      );
+    },
+    [auth, apiUrl, notify]
+  );
+
+  useEffect(() => {
+    if (!auth || auth.mustChange) return;
+
+    // 1. Kiểm tra nếu điện thoại vừa quét mã QR trước hoặc sau khi đăng nhập
+    try {
+      const pendingRaw = window.sessionStorage.getItem(
+        "PENDING_QR_HANDOVER_CLAIM"
+      );
+      if (pendingRaw) {
+        window.sessionStorage.removeItem("PENDING_QR_HANDOVER_CLAIM");
+        const parsed = JSON.parse(pendingRaw);
+        if (parsed && (parsed.qrToken || parsed.qrPin)) {
+          claimQrHandoverSession(
+            String(parsed.qrToken || ""),
+            String(parsed.qrPin || "")
+          );
+        }
+      }
+    } catch {}
+
+    // 2. Tải trạng thái Khóa cứng bắt buộc in 2 biểu mẫu (BM.04 & BM.13) trên PC (Chống bấm F5 lách luật)
+    let cancelled = false;
+    const fetchComplianceStatus = async () => {
+      const res = await rpcCall(
+        apiUrl,
+        "shiftOp",
+        { op: "qr_status" },
+        auth.token
+      );
+      if (cancelled || !res.net || res.body.status !== "success") return;
+      const comp =
+        (res.body.compliancePrint as CompliancePrintState | null) || null;
+      setCompliancePrintState(comp);
+    };
+    fetchComplianceStatus();
+    const timer = window.setInterval(fetchComplianceStatus, 12000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [auth, apiUrl, claimQrHandoverSession]);
+
+  // Xử lý khi người nhận tích đủ 100% và bấm "Xác nhận Nhận bàn giao" trên điện thoại
+  const handleMobileAcceptHandover = async () => {
+    if (!auth || !mobileQrSession) return;
+    setMobileSubmitting(true);
+    const res = await rpcCall(
+      apiUrl,
+      "shiftOp",
+      {
+        ngayBC: mobileQrSession.date,
+        caTruc: mobileQrSession.shift,
+        op: "receive",
+        fromQrMobile: true,
+        checklistVerified: true,
+      },
+      auth.token
+    );
+    setMobileSubmitting(false);
+
+    if (!res.net || res.body.status !== "success") {
+      notify(
+        res.body.message || "Không thể ký nhận bàn giao ca. Vui lòng thử lại!",
+        "error"
+      );
+      return;
+    }
+
+    setMobileAcceptedMustLogout(true);
+    notify(
+      `Ký nhận bàn giao Ca ${mobileQrSession.shift} thành công! Vui lòng bấm Đăng xuất khỏi điện thoại.`,
+      "success"
+    );
+  };
+
+  // Xử lý khi người nhận bấm "Không nhận bàn giao" trên điện thoại -> Tự động mở khóa cho PC sửa lại
+  const handleMobileRejectHandover = async (reason: string) => {
+    if (!auth || !mobileQrSession) return;
+    setMobileSubmitting(true);
+    const res = await rpcCall(
+      apiUrl,
+      "shiftOp",
+      {
+        ngayBC: mobileQrSession.date,
+        caTruc: mobileQrSession.shift,
+        op: "reject",
+        rejectReason: reason,
+      },
+      auth.token
+    );
+    setMobileSubmitting(false);
+
+    if (!res.net || res.body.status !== "success") {
+      notify(
+        res.body.message || "Không thể gửi yêu cầu từ chối bàn giao.",
+        "error"
+      );
+      return;
+    }
+
+    const rejectedShift = mobileQrSession.shift;
+    setMobileQrSession(null);
+    setMobileAcceptedMustLogout(false);
+    await syncFromCloud(true, selectedDate);
+    notify(
+      `Đã từ chối nhận bàn giao và tự động mở khóa Ca ${rejectedShift} để người giao điều chỉnh lại số liệu trên PC!`,
+      "info"
+    );
+  };
+
+  // Đăng xuất bắt buộc trên điện thoại sau khi ký nhận bàn giao để lên PC không bị trùng phiên
+  const handleMandatoryMobileLogout = async () => {
+    if (auth) {
+      await rpcCall(apiUrl, "clearSession", {}, auth.token);
+    }
+    setMobileQrSession(null);
+    setMobileAcceptedMustLogout(false);
+    setChecker(null);
+    setAuth(null);
+  };
+
+  // Thực hiện in từng biểu mẫu (BM.04 & BM.13) và gỡ khóa cứng tuân thủ trên PC
+  const handleTriggerCompliancePrint = async (form: "BM04" | "BM13") => {
+    if (!auth || !compliancePrintState) return;
+    setPrintingFormLock(form);
+
+    if (
+      compliancePrintState.date &&
+      compliancePrintState.date !== selectedDate
+    ) {
+      datePickedRef.current = compliancePrintState.date !== todayStr;
+      setSelectedDate(compliancePrintState.date);
+    }
+    setActiveTab(form === "BM04" ? "PRINT_BM04" : "PRINT_BM13");
+
+    window.setTimeout(async () => {
+      try {
+        window.print();
+      } catch {}
+
+      const res = await rpcCall(
+        apiUrl,
+        "shiftOp",
+        { op: "mark_printed", form },
+        auth.token
+      );
+      setPrintingFormLock(null);
+
+      if (res.net && res.body.status === "success") {
+        const nextComp =
+          (res.body.compliancePrint as CompliancePrintState | null) || null;
+        setCompliancePrintState(nextComp);
+        if (!nextComp || !nextComp.required) {
+          setActiveTab("WORK");
+          notify(
+            "Đã hoàn tất in đủ 2 biểu mẫu BM.04 & BM.13! Phiên làm việc mới đã được mở khóa hoàn toàn.",
+            "success"
+          );
+        } else {
+          notify(
+            `Đã ghi nhận in ${
+              form === "BM04" ? "Sổ BM.04" : "Sổ BM.13"
+            }. Vui lòng bấm in nốt biểu mẫu còn lại để mở khóa!`,
+            "info"
+          );
+        }
+      }
+    }, 400);
+  };
+
+  // Dự phòng danh sách tồn kho nếu mở Checklist trên điện thoại
+  const fallbackMobileSnapshotRows: ShiftSnapshotRow[] = useMemo(() => {
+    const targetShift = (mobileQrSession?.shift || viewShift) as ShiftNumber;
+    const rows: ShiftSnapshotRow[] = [];
+    currentDayComputed.tests.forEach((t) => {
+      if (!isStockTestCode(t.code) || t.noStock) return;
+      const prevEnd =
+        targetShift === 1
+          ? currentDayComputed.tonDau[t.code] ?? 0
+          : currentDayComputed.shifts[(targetShift - 1) as ShiftNumber]?.[
+              t.code
+            ]?.tonCuoi ?? 0;
+      const c = currentDayComputed.shifts[targetShift]?.[t.code] || {
+        boiHoan: 0,
+        suDungQC: 0,
+        suDung: 0,
+        tonCuoi: prevEnd,
+      };
+      rows.push({
+        code: t.code,
+        name: t.name,
+        unit: t.unit,
+        tonDau: prevEnd,
+        boiHoan: c.boiHoan,
+        suDungQC: c.suDungQC,
+        suDung: c.suDung,
+        tonCuoi: c.tonCuoi,
+      });
+    });
+    return rows;
+  }, [mobileQrSession?.shift, viewShift, currentDayComputed]);
 
   /* ==================== RENDER MÀN HÌNH ĐĂNG NHẬP NẾU CHƯA AUTH ==================== */
 
@@ -5128,8 +6397,12 @@ export function MainApp() {
     );
   }
 
+  const isLockedByCompliancePrint = Boolean(compliancePrintState?.required);
   const activeShiftTheme = SHIFT_THEME[viewShift] || SHIFT_THEME[1];
-  const isWorkDisabled = Boolean(handoverLockReason) || isLockedByOtherUser;
+  const isWorkDisabled =
+    Boolean(handoverLockReason) ||
+    isLockedByOtherUser ||
+    isLockedByCompliancePrint;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col justify-between">
@@ -6776,6 +8049,60 @@ export function MainApp() {
           onConfirmCloseShift={() => handleConfirmCloseShift(closingShiftModal)}
         />
       )}
+
+      {(handoverQrState?.status === "WAITING_SCAN" ||
+        handoverQrState?.status === "VERIFYING") && (
+        <PcHandoverQrModal
+          qrState={handoverQrState}
+          nowMs={qrNowMs}
+          cancelLoading={cancelQrLoading}
+          onCancelAndUnlock={handleCancelQrFromPc}
+        />
+      )}
+
+      {/* Nút nổi hỗ trợ nhập nhanh Mã PIN 4 số trên điện thoại nếu Camera mờ/chói */}
+      {!mobileQrSession && !handoverQrState && (
+        <div className="no-print fixed bottom-4 left-4 z-40">
+          <button
+            type="button"
+            onClick={() => setShowManualPinModal(true)}
+            className="px-3.5 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-amber-300 border border-amber-400/40 shadow-lg text-xs font-black flex items-center gap-1.5"
+            title="Nhập Mã PIN 4 số hiển thị trên màn hình PC để mở Checklist nhận bàn giao ca"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>📱 Nhập PIN Nhận Ca</span>
+          </button>
+        </div>
+      )}
+
+      <ManualPinClaimModal
+        open={showManualPinModal}
+        loading={mobileSubmitting}
+        onClose={() => setShowManualPinModal(false)}
+        onSubmitPin={(pin) => claimQrHandoverSession("", pin)}
+      />
+
+      {mobileQrSession && (
+        <MobileHandoverChecklistModal
+          qrState={mobileQrSession}
+          fallbackRows={fallbackMobileSnapshotRows}
+          verifierName={auth.user.name}
+          isOnline={isOnline}
+          submitting={mobileSubmitting}
+          acceptedMustLogout={mobileAcceptedMustLogout}
+          onAcceptHandover={handleMobileAcceptHandover}
+          onRejectHandover={handleMobileRejectHandover}
+          onMandatoryMobileLogout={handleMandatoryMobileLogout}
+          onCloseWithoutAction={() => setMobileQrSession(null)}
+        />
+      )}
+
+      <CompliancePrintLockModal
+        state={compliancePrintState}
+        activeTab={activeTab}
+        printingForm={printingFormLock}
+        onTriggerPrintForm={handleTriggerCompliancePrint}
+      />
     </div>
   );
 }
