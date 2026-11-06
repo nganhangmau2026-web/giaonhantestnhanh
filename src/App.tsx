@@ -46,7 +46,7 @@ import {
 /* ============================== CẤU HÌNH KẾT NỐI ============================== */
 
 const DEFAULT_API_URL =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GAS_API_URL) ||
+  (typeof process !== "undefined" && process.env?.REACT_APP_GAS_API_URL) ||
   "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec";
 
 const STORAGE_KEYS = Object.freeze({
@@ -647,8 +647,6 @@ export function validateAndNormalizeMulti(
 
 /**
  * Hiển thị thông minh kết quả đa chân (dùng cho cả Nhật ký BM.04 và Bản in A4).
- * - Đối với WIDAL (8 chân): Nếu cả 8 chân đều Âm -> hiện "Âm tính". Nếu có chân Dương -> chỉ hiện đúng các chân Dương: "Typhi O (D), AO (D)".
- * - Đối với DRUG4 / DENGUE / KSTSR: Hiện "MOP (D)", "AMP (Â)" kèm ghi chú lâm sàng bên dưới nếu có.
  */
 export function formatShortMultiSummary(
   maTest: string,
@@ -757,11 +755,6 @@ function clampInt(v: any, min = 0, max = 99999): number {
   return Math.max(min, Math.min(max, n));
 }
 
-/**
- * Tính toán tồn kho BM.13 chính xác tuyệt đối cho một ngày:
- * - Tự động loại bỏ các test miễn trừ tồn kho (WIDAL).
- * - Ép kiểu Number(caTruc) và chuẩn hóa maTest viết hoa để không bao giờ rớt lượt Sử dụng ở Ca 2, Ca 3, Ca 4.
- */
 export function computeDaySingle(
   targetDate: string,
   liveTests: TestConfig[],
@@ -1095,7 +1088,6 @@ export class AppErrorBoundary extends React.Component<
   }
   handleSafeReset = () => {
     try {
-      // Bảo toàn Outbox và Auth, chỉ làm sạch bộ nhớ hiển thị tạm nếu bị hỏng
       localStorage.removeItem(STORAGE_KEYS.DRAFTS);
     } catch {}
     window.location.reload();
@@ -1156,7 +1148,6 @@ export function MultiPanelResultInput({
     .toUpperCase();
   const subs = getSubTests(code) || [];
 
-  // Sử dụng state cục bộ để đảm bảo nút bấm luôn nhạy và lên màu ngay lập tức
   const [localMap, setLocalMap] = useState<Record<string, "Âm" | "Dương" | "">>(
     {}
   );
@@ -1288,18 +1279,12 @@ interface LoginScreenProps {
   onChangeApiUrl: (nextUrl: string) => void;
 }
 
-export function LoginScreen({
-  apiUrl,
-  onSuccess,
-  onChangeApiUrl,
-}: LoginScreenProps) {
+export function LoginScreen({ apiUrl, onSuccess }: LoginScreenProps) {
   const [id, setId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showUrlConfig, setShowUrlConfig] = useState(false);
-  const [tempUrl, setTempUrl] = useState(apiUrl);
-  const [testingUrl, setTestingUrl] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1316,8 +1301,7 @@ export function LoginScreen({
     setLoading(false);
     if (!res.net) {
       setError(
-        res.body.message ||
-          "Không thể kết nối máy chủ. Kiểm tra mạng hoặc cấu hình URL API."
+        res.body.message || "Không thể kết nối máy chủ. Kiểm tra kết nối mạng."
       );
       return;
     }
@@ -1335,27 +1319,22 @@ export function LoginScreen({
     );
   };
 
-  const handleSaveEndpoint = async () => {
-    setTestingUrl(true);
-    setError("");
-    const check = await testApiEndpoint(tempUrl);
-    setTestingUrl(false);
-    if (!check.ok) {
-      setError(check.message);
-      return;
-    }
-    onChangeApiUrl(tempUrl.trim());
-    setShowUrlConfig(false);
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 flex flex-col justify-between p-4">
-      <div />
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 flex items-center justify-center p-4">
       <div className="max-w-md w-full mx-auto bg-white/95 backdrop-blur rounded-3xl shadow-2xl border border-slate-200/80 overflow-hidden">
         <div className="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 px-6 py-6 text-center border-b border-amber-400/30">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-500/20 border border-sky-400/40 text-sky-300 mb-3">
-            <ShieldCheck className="w-8 h-8" />
-          </div>
+          {!logoError ? (
+            <img
+              src="/Quản Lý Test Nhanh Miễn dịch.png"
+              onError={() => setLogoError(true)}
+              alt="Quản Lý Test Nhanh Miễn Dịch"
+              className="w-24 h-24 rounded-3xl object-cover mx-auto mb-3 shadow-xl border-2 border-sky-400/50"
+            />
+          ) : (
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-500/20 border border-sky-400/40 text-sky-300 mb-3">
+              <ShieldCheck className="w-9 h-9" />
+            </div>
+          )}
           <h1 className="text-lg font-black uppercase tracking-wider text-white">
             BỆNH VIỆN ĐA KHOA CÀ MAU
           </h1>
@@ -1407,52 +1386,12 @@ export function LoginScreen({
             {loading ? "Đang xác thực..." : "Đăng nhập hệ thống"}
           </button>
 
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[11px] text-slate-400 font-semibold">
-              BM.04 & BM.13 • ISO 15189
+          <div className="pt-3 border-t border-slate-100 text-center">
+            <span className="text-[11px] font-black tracking-[0.18em] uppercase bg-gradient-to-r from-sky-700 via-blue-800 to-indigo-700 bg-clip-text text-transparent">
+              AN INTELLECTUAL PRODUCT OF HANDSOME LONG
             </span>
-            <button
-              type="button"
-              onClick={() => {
-                setTempUrl(apiUrl);
-                setShowUrlConfig(!showUrlConfig);
-              }}
-              className="text-[11px] font-bold text-sky-600 hover:underline flex items-center gap-1"
-            >
-              <Database className="w-3.5 h-3.5" /> Cấu hình URL API
-            </button>
           </div>
-
-          {showUrlConfig && (
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <label className="block text-[11px] font-black uppercase text-slate-600">
-                Google Apps Script Web App URL (/exec)
-              </label>
-              <input
-                type="text"
-                value={tempUrl}
-                onChange={(e) => setTempUrl(e.target.value)}
-                className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono text-slate-700"
-              />
-              <button
-                type="button"
-                disabled={testingUrl}
-                onClick={handleSaveEndpoint}
-                className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold"
-              >
-                {testingUrl
-                  ? "Đang kiểm tra kết nối..."
-                  : "Kiểm tra & Lưu kết nối"}
-              </button>
-            </div>
-          )}
         </form>
-      </div>
-
-      <div className="text-center py-3">
-        <span className="text-[11px] font-black tracking-[0.22em] uppercase bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 bg-clip-text text-transparent">
-          AN INTELLECTUAL PRODUCT OF HANDSOME LONG
-        </span>
       </div>
     </div>
   );
@@ -2214,8 +2153,8 @@ export function ClosingReviewModal({
             </h3>
           </div>
           <p className="text-xs font-semibold text-slate-500 mt-1">
-            Sau khi chốt, số liệu Ca {shift} sẽ khóa lại (chỉ Admin sửa được) và
-            tài khoản sẽ đăng xuất để ca sau nhận bàn giao.
+            Sau khi chốt, hệ thống sẽ sinh Mã QR động (và Mã PIN 4 số) để người
+            nhận ca dùng điện thoại kiểm đếm trực tiếp tại tủ hóa chất.
           </p>
         </div>
 
@@ -2300,8 +2239,8 @@ export function ClosingReviewModal({
             className="px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-600/25 transition"
           >
             {loading
-              ? "Đang khóa sổ..."
-              : `Xác nhận chốt Ca ${shift} & đăng xuất`}
+              ? "Đang tạo mã QR bàn giao..."
+              : `Xác nhận chốt Ca ${shift} & Tạo QR`}
           </button>
         </div>
       </div>
@@ -2324,9 +2263,6 @@ export function renderKetQuaBM04(r: QueueItem | null) {
     const hasStructured = subs.some((k) => parsed[k] !== "");
 
     if (hasStructured) {
-      // Quy tắc cho WIDAL (8 chân): Hiển thị lưới 4 cột x 2 dòng theo từng cặp O (dòng 1) và H (dòng 2)
-      // Dòng 1: Typhi O | AO | BO | CO
-      // Dòng 2: Typhi H | AH | BH | CH
       if (code === "WIDAL") {
         const widalOrder = [
           "Typhi O",
@@ -2366,7 +2302,6 @@ export function renderKetQuaBM04(r: QueueItem | null) {
         );
       }
 
-      // Quy tắc cho DENGUE & KSTSR (2 chân)
       if (subs.length === 2) {
         return (
           <div className="py-0.5 px-0.5 leading-none">
@@ -2402,7 +2337,6 @@ export function renderKetQuaBM04(r: QueueItem | null) {
         );
       }
 
-      // Quy tắc cho DRUG4 (5 chân - lưới 3 cột gọn gàng: MOP (D) | AMP (Â) | THC (Â)...)
       return (
         <div className="py-0.5 px-0.5 leading-none">
           <div className="grid grid-cols-3 gap-x-1 gap-y-0.5 text-[8px] text-left">
@@ -2463,7 +2397,6 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
     });
   }, [logs, selectedDate, filterTest, filterShift]);
 
-  // THUẬT TOÁN TỰ ĐỘNG CHIA TRANG (CHUNKING) - Tối ưu lấp đầy trang A4 ngang (16 dòng/trang)
   const ROWS_PER_PAGE = 16;
   const totalPages = Math.max(1, Math.ceil(dayLogs.length / ROWS_PER_PAGE));
 
@@ -2475,7 +2408,7 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
         (i + 1) * ROWS_PER_PAGE
       );
       while (chunk.length < ROWS_PER_PAGE) {
-        chunk.push(null); // Bơm dòng trống cho đủ 16 dòng
+        chunk.push(null);
       }
       result.push(chunk);
     }
@@ -2531,7 +2464,6 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
         </button>
       </div>
 
-      {/* LẶP QUA TỪNG TRANG VÀ IN RA (Đã tối ưu padding và chiều cao dòng chống tràn trang) */}
       {pages.map((pageRows, pageIndex) => (
         <div
           key={pageIndex}
@@ -2690,7 +2622,6 @@ export function PrintBm13({ selectedDate, computed }: PrintBm13Props) {
         className="print-sheet bg-white px-2 py-4 text-black"
         style={{ pageBreakInside: "avoid" }}
       >
-        {/* HEADER BM.13 */}
         <div className="flex items-end justify-between mb-2">
           <div className="text-sm font-bold">
             Biên bản bàn giao hóa chất hằng ngày
@@ -2917,7 +2848,6 @@ export function PrintBm13({ selectedDate, computed }: PrintBm13Props) {
           </span>
         </div>
 
-        {/* FOOTER BM.13 */}
         <div className="flex items-center justify-between mt-4 border-t border-black pt-2 text-[11px] italic">
           <div>Ngày ban hành: 18/06/2025</div>
           <div>Lần ban hành: 03</div>
@@ -3099,7 +3029,6 @@ export function AdminPanel({
 
   return (
     <div className="space-y-6">
-      {/* Khung Khóa phiên & Kết nối Database */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
           <div className="flex items-center justify-between">
@@ -3179,7 +3108,6 @@ export function AdminPanel({
         </div>
       </div>
 
-      {/* Quản lý Danh mục Xét nghiệm */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -3292,7 +3220,6 @@ export function AdminPanel({
         </div>
       </div>
 
-      {/* Quản lý Nhân sự */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2">
@@ -3413,10 +3340,6 @@ interface ToastNotice {
   type: "success" | "error" | "info";
 }
 
-/**
- * Phát âm báo y tế 3 tiếng "Tít - Tít - Tít" (880Hz) bằng Web Audio API nội tại
- * khi đồng hồ ủ test (10' / 15' / 20') chạm mốc 00:00.
- */
 function playTripleBeepAlert() {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -3446,9 +3369,7 @@ function playTripleBeepAlert() {
         ctx.close();
       } catch {}
     }, 900);
-  } catch {
-    // Bỏ qua nếu trình duyệt chặn tự động phát âm thanh
-  }
+  } catch {}
 }
 
 export interface ShiftSnapshotRow {
@@ -3495,6 +3416,7 @@ export interface CompliancePrintState {
 interface PcHandoverQrModalProps {
   qrState: HandoverQrState | null;
   nowMs: number;
+  authToken: string;
   cancelLoading: boolean;
   onCancelAndUnlock: () => void;
 }
@@ -3502,6 +3424,7 @@ interface PcHandoverQrModalProps {
 function PcHandoverQrModal({
   qrState,
   nowMs,
+  authToken,
   cancelLoading,
   onCancelAndUnlock,
 }: PcHandoverQrModalProps) {
@@ -3517,9 +3440,12 @@ function PcHandoverQrModal({
     typeof window !== "undefined"
       ? `${window.location.origin}${window.location.pathname}`
       : "";
+  // TOKEN BRIDGE: Nhúng Token ngầm vào URL để Zalo / App quét QR đi xuyên qua màn hình Login
   const mobileVerifyUrl = `${baseUrl}?handover_qr=${encodeURIComponent(
     qrState.qrToken
-  )}&pin=${encodeURIComponent(qrState.qrPin)}`;
+  )}&pin=${encodeURIComponent(qrState.qrPin)}&t=${encodeURIComponent(
+    authToken
+  )}`;
 
   const primaryQrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=${encodeURIComponent(
     mobileVerifyUrl
@@ -3534,7 +3460,6 @@ function PcHandoverQrModal({
   return (
     <div className="no-print fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-sky-400 space-y-5 text-center animate-in fade-in zoom-in-95 duration-200">
-        {/* Header trạng thái */}
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sky-100 text-sky-900 text-xs font-black uppercase tracking-wider">
             <Clock className="w-4 h-4 text-sky-600 animate-spin" />
@@ -3553,7 +3478,6 @@ function PcHandoverQrModal({
           </p>
         </div>
 
-        {/* Trạng thái trực tiếp khi người nhận đã quét QR */}
         {isVerifying ? (
           <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-emerald-400 text-emerald-950 space-y-1 animate-pulse">
             <div className="text-xs font-black uppercase text-emerald-800 flex items-center justify-center gap-1.5">
@@ -3570,12 +3494,12 @@ function PcHandoverQrModal({
           </div>
         ) : (
           <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold">
-            Người nhận bàn giao dùng Camera điện thoại (hoặc Zalo) quét mã QR
-            bên dưới để mở bảng Checklist kiểm đếm tại tủ lạnh.
+            Người nhận bàn giao dùng Camera điện thoại, Zalo hoặc ứng dụng quét
+            mã QR bất kỳ quét mã bên dưới để mở bảng Checklist kiểm đếm tại tủ
+            lạnh.
           </div>
         )}
 
-        {/* Khung chứa Big QR Code */}
         <div className="flex flex-col items-center justify-center">
           <div className="p-3 bg-white rounded-3xl border-4 border-slate-900 shadow-lg inline-block">
             <img
@@ -3587,7 +3511,6 @@ function PcHandoverQrModal({
           </div>
         </div>
 
-        {/* Mã PIN 4 số dự phòng (Đề xuất 1) */}
         <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-1 shadow-inner">
           <div className="text-[10px] font-black uppercase tracking-widest text-sky-300">
             Mã PIN Dự Phòng (Nhập trên điện thoại nếu Camera mờ/chói)
@@ -3597,7 +3520,6 @@ function PcHandoverQrModal({
           </div>
         </div>
 
-        {/* Đồng hồ đếm ngược 10 phút chống kẹt phiên (Timeout TTL) */}
         <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-600">
           <span>Tự động mở khóa nếu không phản hồi sau:</span>
           <span className="font-mono text-sm font-black text-rose-600">
@@ -3605,7 +3527,6 @@ function PcHandoverQrModal({
           </span>
         </div>
 
-        {/* Nút hủy chốt dành cho người giao nếu phát hiện sai số muốn tự sửa ngay trên PC */}
         <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
           <button
             type="button"
@@ -3643,7 +3564,7 @@ interface MobileHandoverChecklistModalProps {
   isOnline: boolean;
   submitting: boolean;
   acceptedMustLogout: boolean;
-  onAcceptHandover: () => void;
+  onAcceptHandover: (verifierName: string) => void;
   onRejectHandover: (reason: string) => void;
   onMandatoryMobileLogout: () => void;
   onCloseWithoutAction: () => void;
@@ -3662,9 +3583,8 @@ function MobileHandoverChecklistModal({
   onCloseWithoutAction,
 }: MobileHandoverChecklistModalProps) {
   const rows: ShiftSnapshotRow[] = useMemo(() => {
-    if (qrState?.shiftSnapshot && qrState.shiftSnapshot.length > 0) {
+    if (qrState?.shiftSnapshot && qrState.shiftSnapshot.length > 0)
       return qrState.shiftSnapshot;
-    }
     return fallbackRows;
   }, [qrState?.shiftSnapshot, fallbackRows]);
 
@@ -3676,23 +3596,23 @@ function MobileHandoverChecklistModal({
     QUICK_REJECT_REASONS[0]
   );
   const [customRejectDetail, setCustomRejectDetail] = useState<string>("");
+  const [verifierInput, setVerifierInput] = useState<string>(
+    verifierName || ""
+  );
 
-  // Khôi phục trạng thái tích chọn từ localStorage (Chống mất dấu tick khi ra góc khuất kho lạnh yếu mạng)
   useEffect(() => {
     if (!storageKey) return;
     try {
       const saved = window.localStorage.getItem(storageKey);
-      if (saved) {
-        setCheckedMap(JSON.parse(saved) || {});
-      } else {
-        setCheckedMap({});
-      }
+      if (saved) setCheckedMap(JSON.parse(saved) || {});
+      else setCheckedMap({});
     } catch {
       setCheckedMap({});
     }
     setShowRejectBox(false);
     setCustomRejectDetail("");
-  }, [storageKey]);
+    setVerifierInput(verifierName || "");
+  }, [storageKey, verifierName]);
 
   const toggleCheckItem = (code: string) => {
     setCheckedMap((prev) => {
@@ -3713,6 +3633,11 @@ function MobileHandoverChecklistModal({
   const isAllChecked = totalCount > 0 && checkedCount === totalCount;
   const progressPct =
     totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
+  const displayVerifierName =
+    verifierInput.trim() ||
+    verifierName ||
+    qrState.verifierName ||
+    "Người nhận";
 
   // MÀN HÌNH BẮT BUỘC ĐĂNG XUẤT TRÊN ĐIỆN THOẠI SAU KHI KÝ NHẬN THÀNH CÔNG
   if (acceptedMustLogout) {
@@ -3732,7 +3657,9 @@ function MobileHandoverChecklistModal({
             </h3>
             <p className="text-xs font-semibold text-slate-600">
               Ngày {formatDateDisplay(qrState.date)} • Người nhận:{" "}
-              <strong className="text-emerald-700">{verifierName}</strong>
+              <strong className="text-emerald-700">
+                {displayVerifierName}
+              </strong>
             </p>
           </div>
 
@@ -3744,14 +3671,13 @@ function MobileHandoverChecklistModal({
             <p className="text-xs font-semibold leading-relaxed">
               1. Vui lòng bấm nút{" "}
               <strong className="text-rose-700 underline">
-                Đăng xuất thiết bị di động
+                Đăng xuất khỏi điện thoại
               </strong>{" "}
-              ngay bên dưới để giải phóng tài khoản trên điện thoại.
+              ngay bên dưới để giải phóng phiên trên thiết bị di động.
             </p>
             <p className="text-xs font-semibold leading-relaxed">
-              2. Mời bạn bước ra máy tính (PC) đăng nhập để bắt đầu phiên làm
-              việc mới (Nếu không đăng xuất trên điện thoại sẽ bị chặn trùng
-              phiên trên PC).
+              2. Mời bạn bước ra máy tính (PC) đăng nhập để bắt đầu làm việc
+              chuyên môn trên PC.
             </p>
           </div>
 
@@ -3797,7 +3723,10 @@ function MobileHandoverChecklistModal({
               Giao: <strong className="text-white">{qrState.senderName}</strong>
             </span>
             <span className="text-slate-300">
-              Nhận: <strong className="text-emerald-300">{verifierName}</strong>
+              Nhận:{" "}
+              <strong className="text-emerald-300">
+                {displayVerifierName}
+              </strong>
             </span>
           </div>
 
@@ -3903,7 +3832,6 @@ function MobileHandoverChecklistModal({
                   </div>
                 </div>
 
-                {/* Ô Checkbox to rõ cho màn hình cảm ứng */}
                 <div
                   className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center shrink-0 transition ${
                     isChecked
@@ -3991,19 +3919,32 @@ function MobileHandoverChecklistModal({
             </div>
           ) : (
             <div className="space-y-2">
-              {/* Nút Xác nhận Nhận bàn giao: Chỉ hiện/mở khóa khi đã tick đủ 100% */}
               {isAllChecked ? (
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={onAcceptHandover}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-black uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition"
-                >
-                  <CheckCircle2 className="w-5 h-5" />
-                  {submitting
-                    ? "Đang ký nhận bàn giao..."
-                    : `Xác Nhận Nhận Bàn Giao Ca ${qrState.shift} (100%)`}
-                </button>
+                <div className="space-y-2">
+                  <div className="px-3 py-2 bg-emerald-50 border border-emerald-300 rounded-xl">
+                    <label className="block text-[11px] font-black uppercase text-emerald-800 mb-1">
+                      Xác nhận họ tên người nhận bàn giao:
+                    </label>
+                    <input
+                      type="text"
+                      value={verifierInput}
+                      onChange={(e) => setVerifierInput(e.target.value)}
+                      placeholder="Nhập họ tên người nhận ca..."
+                      className="w-full px-3 py-2 border border-emerald-400 rounded-lg text-sm font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={submitting || verifierInput.trim().length === 0}
+                    onClick={() => onAcceptHandover(verifierInput.trim())}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-black uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition"
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    {submitting
+                      ? "Đang ký nhận bàn giao..."
+                      : `Xác Nhận Nhận Bàn Giao Ca ${qrState.shift} (100%)`}
+                  </button>
+                </div>
               ) : (
                 <div className="w-full py-2.5 px-3 rounded-xl bg-slate-100 border border-slate-200 text-center text-[11px] font-bold text-slate-500">
                   🔒 Nút &quot;Xác nhận Nhận bàn giao&quot; sẽ hiện ra khi bạn
@@ -4103,7 +4044,7 @@ function ManualPinClaimModal({
   );
 }
 
-/* ====== KHÓA CỨNG TUÂN THỦ ISO 15189: BẮT BUỘC IN ĐỦ 2 BIỂU MẪU (BM.04 & BM.13) ====== */
+/* ====== KHÓA CỨNG TUÂN THỦ ISO 15189: BẮT BUỘC IN ĐỦ 2 BIỂU MẪU (CHỈ ÁP DỤNG CA 4) ====== */
 
 interface CompliancePrintLockModalProps {
   state: CompliancePrintState | null;
@@ -4120,12 +4061,12 @@ function CompliancePrintLockModal({
 }: CompliancePrintLockModalProps) {
   const [minimizedOnPrintTab, setMinimizedOnPrintTab] = useState(false);
 
-  if (!state || !state.required) return null;
+  // CHỈ KÍCH HOẠT KHÓA CỨNG IN ẤN NẾU ĐÚNG LÀ CA 4
+  if (!state || !state.required || Number(state.shift) !== 4) return null;
 
   const isOnPrintPreview =
     activeTab === "PRINT_BM04" || activeTab === "PRINT_BM13";
 
-  // Nếu đang ở Tab Xem trước bản in và người dùng bấm thu gọn để chỉnh bộ lọc in, hiện thanh nổi cố định trên cùng
   if (isOnPrintPreview && minimizedOnPrintTab) {
     return (
       <div className="no-print fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-2xl w-[95%] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border-2 border-amber-400 flex flex-wrap items-center justify-between gap-2">
@@ -4181,7 +4122,7 @@ function CompliancePrintLockModal({
 
         <div className="space-y-1.5">
           <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-black uppercase">
-            Khóa Cứng Tuân Thủ ISO 15189
+            Khóa Cứng Tuân Thủ ISO 15189 • Chốt Ca 4 Cuối Ngày
           </span>
           <h3 className="text-lg font-black uppercase text-slate-900 leading-snug">
             Bạn Phải In Cả 2 Biểu Mẫu Mới Có Thể Bắt Đầu Phiên Làm Việc Mới!
@@ -4205,11 +4146,10 @@ function CompliancePrintLockModal({
             khóa cứng tạm thời
           </strong>
           . Hệ thống sẽ tự động mở khóa ngay sau khi bạn bấm in hoàn tất 2 biểu
-          mẫu bên dưới:
+          mẫu tổng kết 4 ca của ngày {formatDateDisplay(state.date)} bên dưới:
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Nút 1: In Sổ BM.04 */}
           <button
             type="button"
             disabled={printingForm !== null}
@@ -4247,7 +4187,6 @@ function CompliancePrintLockModal({
             </div>
           </button>
 
-          {/* Nút 2: In Sổ BM.13 */}
           <button
             type="button"
             disabled={printingForm !== null}
@@ -4299,7 +4238,6 @@ function CompliancePrintLockModal({
     </div>
   );
 }
-
 export function MainApp() {
   const [apiUrl, setApiUrl] = usePersistentState<string>(
     STORAGE_KEYS.API_URL,
@@ -4424,6 +4362,7 @@ export function MainApp() {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastNotice[]>([]);
+  const [headerLogoErr, setHeaderLogoErr] = useState<boolean>(false);
 
   // State cho Form thêm Bệnh nhân (Cột 1 - Tab 1)
   const [hoTenBN, setHoTenBN] = useState("");
@@ -4462,9 +4401,10 @@ export function MainApp() {
   const [compliancePrintState, setCompliancePrintState] =
     useState<CompliancePrintState | null>(null);
 
-  // State cho Mobile Checklist khi quét QR hoặc nhập PIN 4 số
+  // State cho Mobile Checklist khi quét QR (hỗ trợ Token Bridge)
   const [mobileQrSession, setMobileQrSession] =
     useState<HandoverQrState | null>(null);
+  const [mobileAuthToken, setMobileAuthToken] = useState<string>("");
   const [mobileSubmitting, setMobileSubmitting] = useState<boolean>(false);
   const [mobileAcceptedMustLogout, setMobileAcceptedMustLogout] =
     useState<boolean>(false);
@@ -4473,17 +4413,23 @@ export function MainApp() {
     "BM04" | "BM13" | null
   >(null);
 
-  // Bắt tham số ?handover_qr=...&pin=... từ Camera điện thoại (Lưu vào sessionStorage nếu chưa đăng nhập)
+  // Bắt tham số ?handover_qr=...&pin=...&t=... từ Camera / Zalo / App quét QR
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const qrToken = params.get("handover_qr");
     const qrPin = params.get("pin");
-    if (qrToken || qrPin) {
+    const autoToken = params.get("t");
+
+    if (qrToken || qrPin || autoToken) {
       try {
         window.sessionStorage.setItem(
           "PENDING_QR_HANDOVER_CLAIM",
-          JSON.stringify({ qrToken: qrToken || "", qrPin: qrPin || "" })
+          JSON.stringify({
+            qrToken: qrToken || "",
+            qrPin: qrPin || "",
+            autoToken: autoToken || "",
+          })
         );
       } catch {}
       const cleanUrl = `${window.location.origin}${window.location.pathname}`;
@@ -4510,7 +4456,7 @@ export function MainApp() {
     return () => window.clearInterval(t);
   }, []);
 
-  // Vòng lặp 1 giây duy nhất cho toàn bộ Đồng hồ đếm ngược (chỉ kích hoạt khi có ít nhất 1 đồng hồ đang chạy)
+  // Vòng lặp 1 giây duy nhất cho toàn bộ Đồng hồ đếm ngược
   const hasActiveTimers = useMemo(
     () => Object.keys(timers).length > 0,
     [timers]
@@ -4524,7 +4470,7 @@ export function MainApp() {
     return () => window.clearInterval(timerId);
   }, [hasActiveTimers]);
 
-  // Phát đúng 3 tiếng "Tít - Tít - Tít" khi có bất kỳ đồng hồ nào vừa chạm mốc 00:00
+  // Phát 3 tiếng "Tít - Tít - Tít" khi đồng hồ chạm mốc 00:00
   useEffect(() => {
     if (!hasActiveTimers) return;
     let shouldBeep = false;
@@ -4686,11 +4632,6 @@ export function MainApp() {
     ]
   );
 
-  /**
-   * NHẬN DIỆN KHÓA PHIÊN TOÀN CỤC & QUYỀN TỐI THƯỢNG ADMIN:
-   * - isSessionHeldByOther: Cho biết hiện có đồng nghiệp khác đang giữ phiên chính thức hay không.
-   * - isLockedByOtherUser: Chỉ khóa giao diện đối với User thường. Admin luôn có quyền tối thượng xuyên khóa phiên!
-   */
   const isSessionHeldByOther = useMemo(() => {
     if (!auth || !activeSession) return false;
     const ownerId = String(activeSession.mainUserId || "").toLowerCase();
@@ -4700,12 +4641,11 @@ export function MainApp() {
 
   const isLockedByOtherUser = isSessionHeldByOther && !isAdmin;
 
-  // Kiểm tra quyền chỉnh sửa / xóa bản ghi của người dùng hiện tại
   const canUserModifyRecord = useCallback(
     (item: QueueItem): boolean => {
       if (!auth) return false;
-      if (isAdmin) return true; // Admin luôn có toàn quyền
-      if (isLockedByOtherUser) return false; // User thường bị khóa nếu không phải chủ phiên
+      if (isAdmin) return true;
+      if (isLockedByOtherUser) return false;
       if (isShiftClosed(item.ngayBC, item.caTruc)) return false;
       return item.nguoiThucHien === auth.user.name;
     },
@@ -5159,11 +5099,6 @@ export function MainApp() {
     [auth, apiUrl, selectedDate, viewShift, checker?.name, notify]
   );
 
-  /**
-   * CẢI TIẾN 1: Chỉ bắn nhịp pingSession tự động khi máy hiện tại đang giữ phiên (hoặc chưa có ai giữ phiên).
-   * Nếu đồng nghiệp khác đang giữ phiên (isSessionHeldByOther === true), tự động ngắt bộ đếm pingSession
-   * để tiết kiệm LockService trên Google Sheets và không tự ý cướp phiên của đồng nghiệp.
-   */
   useEffect(() => {
     if (!auth || auth.mustChange || isSessionHeldByOther) return;
     pingCurrentSession(false);
@@ -5305,7 +5240,6 @@ export function MainApp() {
           "Tuổi không hợp lệ (Vui lòng nhập số nguyên từ 1 đến 130).",
           "error"
         );
-        return;
       }
     } else {
       if (
@@ -5372,7 +5306,6 @@ export function MainApp() {
       checkerProof: checker.proof,
     });
 
-    // CẢI TIẾN 2: Xóa trắng Form và tự động trả dấu tick [✓] Tuổi về mặc định (Năm sinh)
     setHoTenBN("");
     setNamSinh("");
     setIsAgeMode(false);
@@ -5827,7 +5760,6 @@ export function MainApp() {
 
     setClosingShiftModal(null);
 
-    // Hiển thị Màn hình Mã QR động + Mã PIN 4 số trên PC và giữ phiên chờ điện thoại đối soát
     if (res.body.handoverQr) {
       setQrNowMs(Date.now());
       setHandoverQrState(res.body.handoverQr as HandoverQrState);
@@ -5840,7 +5772,6 @@ export function MainApp() {
     }
   };
 
-  // Người giao chủ động bấm hủy màn hình QR trên PC để mở khóa sửa lại số liệu
   const handleCancelQrFromPc = useCallback(async () => {
     if (!auth || !handoverQrState) return;
     if (
@@ -5909,7 +5840,6 @@ export function MainApp() {
       }
 
       if (remoteQr.status === "ACCEPTED") {
-        // Người nhận đã tick đủ 100% và bấm Nhận bàn giao trên điện thoại -> Tự động đăng xuất PC!
         setHandoverQrState(null);
         setChecker(null);
         setAuth(null);
@@ -5925,7 +5855,6 @@ export function MainApp() {
       }
 
       if (remoteQr.status === "REJECTED") {
-        // Người nhận bấm Không nhận bàn giao trên điện thoại -> Tự động mở khóa trên PC cho người giao sửa!
         setHandoverQrState(null);
         await syncFromCloud(true, selectedDate);
         notify(
@@ -5940,7 +5869,6 @@ export function MainApp() {
       }
 
       if (remoteQr.status === "EXPIRED") {
-        // Quá 10 phút không phản hồi -> Tự động mở khóa lại ca trực trên PC
         setHandoverQrState(null);
         await syncFromCloud(true, selectedDate);
         notify(
@@ -6118,16 +6046,25 @@ export function MainApp() {
     () => outbox.filter((x) => x.paused).length,
     [outbox]
   );
-  // Đồng bộ trạng thái Khóa cứng In ấn & Tự động mở Mobile Checklist nếu điện thoại vừa quét mã QR
+
+  /* ==================== ĐIỀU PHỐI QR MOBILE (TOKEN BRIDGE) & KHÓA IN CA 4 ==================== */
+
   const claimQrHandoverSession = useCallback(
-    async (qrToken: string, qrPin: string) => {
-      if (!auth) return;
+    async (qrToken: string, qrPin: string, passedToken?: string) => {
+      const tokenToUse = passedToken || (auth ? auth.token : "");
+      if (!tokenToUse) {
+        notify(
+          "Không tìm thấy kết nối xác thực. Vui lòng dùng Camera quét lại mã QR trên màn hình PC!",
+          "error"
+        );
+        return;
+      }
       setMobileSubmitting(true);
       const res = await rpcCall(
         apiUrl,
         "shiftOp",
         { op: "claim_qr", qrToken, qrPin },
-        auth.token
+        tokenToUse
       );
       setMobileSubmitting(false);
 
@@ -6142,6 +6079,7 @@ export function MainApp() {
 
       setShowManualPinModal(false);
       setMobileAcceptedMustLogout(false);
+      setMobileAuthToken(tokenToUse);
       setMobileQrSession(res.body.handoverQr as HandoverQrState);
       notify(
         `Đã mở Checklist kiểm đếm Ca ${res.body.handoverQr.shift}. Vui lòng đếm và tích đủ 100% các hàng test!`,
@@ -6152,26 +6090,30 @@ export function MainApp() {
   );
 
   useEffect(() => {
-    if (!auth || auth.mustChange) return;
-
-    // 1. Kiểm tra nếu điện thoại vừa quét mã QR trước hoặc sau khi đăng nhập
+    // 1. Tự động mở Checklist từ QR (Hỗ trợ cả Zalo / App thứ 3 chưa đăng nhập nhờ autoToken)
     try {
       const pendingRaw = window.sessionStorage.getItem(
         "PENDING_QR_HANDOVER_CLAIM"
       );
       if (pendingRaw) {
-        window.sessionStorage.removeItem("PENDING_QR_HANDOVER_CLAIM");
         const parsed = JSON.parse(pendingRaw);
-        if (parsed && (parsed.qrToken || parsed.qrPin)) {
+        const tokenCandidate = String(
+          parsed?.autoToken || (auth ? auth.token : "")
+        );
+        if (parsed && (parsed.qrToken || parsed.qrPin) && tokenCandidate) {
+          window.sessionStorage.removeItem("PENDING_QR_HANDOVER_CLAIM");
           claimQrHandoverSession(
             String(parsed.qrToken || ""),
-            String(parsed.qrPin || "")
+            String(parsed.qrPin || ""),
+            tokenCandidate
           );
         }
       }
     } catch {}
 
-    // 2. Tải trạng thái Khóa cứng bắt buộc in 2 biểu mẫu (BM.04 & BM.13) trên PC (Chống bấm F5 lách luật)
+    // 2. Tải trạng thái Khóa cứng bắt buộc in 2 biểu mẫu (Chỉ áp dụng khi chốt Ca 4)
+    if (!auth || auth.mustChange) return;
+
     let cancelled = false;
     const fetchComplianceStatus = async () => {
       const res = await rpcCall(
@@ -6193,9 +6135,9 @@ export function MainApp() {
     };
   }, [auth, apiUrl, claimQrHandoverSession]);
 
-  // Xử lý khi người nhận tích đủ 100% và bấm "Xác nhận Nhận bàn giao" trên điện thoại
-  const handleMobileAcceptHandover = async () => {
-    if (!auth || !mobileQrSession) return;
+  const handleMobileAcceptHandover = async (verifierName: string) => {
+    const tokenToUse = mobileAuthToken || (auth ? auth.token : "");
+    if (!mobileQrSession || !tokenToUse) return;
     setMobileSubmitting(true);
     const res = await rpcCall(
       apiUrl,
@@ -6206,8 +6148,9 @@ export function MainApp() {
         op: "receive",
         fromQrMobile: true,
         checklistVerified: true,
+        overrideVerifierName: verifierName.trim(),
       },
-      auth.token
+      tokenToUse
     );
     setMobileSubmitting(false);
 
@@ -6226,9 +6169,9 @@ export function MainApp() {
     );
   };
 
-  // Xử lý khi người nhận bấm "Không nhận bàn giao" trên điện thoại -> Tự động mở khóa cho PC sửa lại
   const handleMobileRejectHandover = async (reason: string) => {
-    if (!auth || !mobileQrSession) return;
+    const tokenToUse = mobileAuthToken || (auth ? auth.token : "");
+    if (!mobileQrSession || !tokenToUse) return;
     setMobileSubmitting(true);
     const res = await rpcCall(
       apiUrl,
@@ -6239,7 +6182,7 @@ export function MainApp() {
         op: "reject",
         rejectReason: reason,
       },
-      auth.token
+      tokenToUse
     );
     setMobileSubmitting(false);
 
@@ -6254,25 +6197,26 @@ export function MainApp() {
     const rejectedShift = mobileQrSession.shift;
     setMobileQrSession(null);
     setMobileAcceptedMustLogout(false);
-    await syncFromCloud(true, selectedDate);
+    setMobileAuthToken("");
+    if (auth) await syncFromCloud(true, selectedDate);
     notify(
       `Đã từ chối nhận bàn giao và tự động mở khóa Ca ${rejectedShift} để người giao điều chỉnh lại số liệu trên PC!`,
       "info"
     );
   };
 
-  // Đăng xuất bắt buộc trên điện thoại sau khi ký nhận bàn giao để lên PC không bị trùng phiên
   const handleMandatoryMobileLogout = async () => {
-    if (auth) {
-      await rpcCall(apiUrl, "clearSession", {}, auth.token);
+    const tokenToUse = mobileAuthToken || (auth ? auth.token : "");
+    if (tokenToUse) {
+      await rpcCall(apiUrl, "clearSession", {}, tokenToUse);
     }
     setMobileQrSession(null);
     setMobileAcceptedMustLogout(false);
+    setMobileAuthToken("");
     setChecker(null);
     setAuth(null);
   };
 
-  // Thực hiện in từng biểu mẫu (BM.04 & BM.13) và gỡ khóa cứng tuân thủ trên PC
   const handleTriggerCompliancePrint = async (form: "BM04" | "BM13") => {
     if (!auth || !compliancePrintState) return;
     setPrintingFormLock(form);
@@ -6321,7 +6265,6 @@ export function MainApp() {
     }, 400);
   };
 
-  // Dự phòng danh sách tồn kho nếu mở Checklist trên điện thoại
   const fallbackMobileSnapshotRows: ShiftSnapshotRow[] = useMemo(() => {
     const targetShift = (mobileQrSession?.shift || viewShift) as ShiftNumber;
     const rows: ShiftSnapshotRow[] = [];
@@ -6352,6 +6295,25 @@ export function MainApp() {
     });
     return rows;
   }, [mobileQrSession?.shift, viewShift, currentDayComputed]);
+
+  /* ==================== TẤM KHIÊN CÁCH LY ZALO & MOBILE QR ==================== */
+  // Đặt sau toàn bộ React Hooks để đảm bảo an toàn tuyệt đối 100%, chặn Zalo nhảy sang màn hình In ấn
+  if (mobileQrSession) {
+    return (
+      <MobileHandoverChecklistModal
+        qrState={mobileQrSession}
+        fallbackRows={fallbackMobileSnapshotRows}
+        verifierName={auth?.user?.name || ""}
+        isOnline={isOnline}
+        submitting={mobileSubmitting}
+        acceptedMustLogout={mobileAcceptedMustLogout}
+        onAcceptHandover={handleMobileAcceptHandover}
+        onRejectHandover={handleMobileRejectHandover}
+        onMandatoryMobileLogout={handleMandatoryMobileLogout}
+        onCloseWithoutAction={() => setMobileQrSession(null)}
+      />
+    );
+  }
 
   /* ==================== RENDER MÀN HÌNH ĐĂNG NHẬP NẾU CHƯA AUTH ==================== */
 
@@ -6397,7 +6359,9 @@ export function MainApp() {
     );
   }
 
-  const isLockedByCompliancePrint = Boolean(compliancePrintState?.required);
+  const isLockedByCompliancePrint = Boolean(
+    compliancePrintState?.required && Number(compliancePrintState?.shift) === 4
+  );
   const activeShiftTheme = SHIFT_THEME[viewShift] || SHIFT_THEME[1];
   const isWorkDisabled =
     Boolean(handoverLockReason) ||
@@ -6444,11 +6408,20 @@ export function MainApp() {
       {/* HEADER MASTER UI */}
       <header className="no-print bg-gradient-to-r from-slate-950 via-slate-900 to-sky-950 text-white shadow-lg border-b border-amber-400/30">
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          {/* Thương hiệu Khoa */}
+          {/* Thương hiệu Khoa kèm Logo mới */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300 shadow-inner">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
+            {!headerLogoErr ? (
+              <img
+                src="/Quản Lý Test Nhanh Miễn dịch.png"
+                onError={() => setHeaderLogoErr(true)}
+                alt="Logo Quản Lý Test Nhanh Miễn Dịch"
+                className="w-12 h-12 rounded-2xl object-cover border border-sky-400/50 shadow-md shrink-0"
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300 shadow-inner">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm sm:text-base font-black uppercase tracking-wider text-white">
@@ -6466,7 +6439,6 @@ export function MainApp() {
 
           {/* Cụm điều khiển Ngày, Ca trực (4 Màu riêng biệt), Trạng thái đồng bộ & Tài khoản */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Bộ chọn Ngày làm việc */}
             <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-1.5">
               <input
                 type="date"
@@ -6497,7 +6469,6 @@ export function MainApp() {
               )}
             </div>
 
-            {/* Bộ chọn Ca trực */}
             <div
               className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 border shadow-sm transition ${activeShiftTheme.headerSelectBg}`}
             >
@@ -6535,7 +6506,6 @@ export function MainApp() {
               )}
             </div>
 
-            {/* Nút Người Kiểm Tra */}
             <button
               type="button"
               disabled={isLockedByOtherUser}
@@ -6552,7 +6522,6 @@ export function MainApp() {
               </span>
             </button>
 
-            {/* Nút Đồng bộ & Hàng đợi Outbox */}
             <button
               type="button"
               onClick={() => {
@@ -6590,7 +6559,6 @@ export function MainApp() {
               </span>
             </button>
 
-            {/* Thông tin User & Đổi MK / Đăng xuất */}
             <div className="flex items-center gap-1 bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-1">
               <span className="text-xs font-black text-sky-200 px-1">
                 {auth.user.name}
@@ -6697,7 +6665,7 @@ export function MainApp() {
         </div>
       </header>
 
-      {/* CÁC BANNER CẢNH BÁO KHÓA PHIÊN (CHẾ ĐỘ CHỈ XEM / QUYỀN TỐI THƯỢNG ADMIN) & GIAO NHẬN CA */}
+      {/* CÁC BANNER CẢNH BÁO KHÓA PHIÊN & GIAO NHẬN CA */}
       <div className="no-print max-w-[1600px] w-full mx-auto px-4 pt-3 space-y-2">
         {isLockedByOtherUser && (
           <div className="p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-400 text-amber-950 text-xs font-bold flex flex-wrap items-center justify-between gap-3 shadow-sm">
@@ -6738,7 +6706,6 @@ export function MainApp() {
           </div>
         )}
 
-        {/* BANNER QUYỀN TỐI THƯỢNG DÀNH RIÊNG CHO ADMIN KHI ĐỒNG NGHIỆP ĐANG GIỮ PHIÊN */}
         {isSessionHeldByOther && isAdmin && (
           <div className="p-3.5 rounded-2xl bg-purple-50 border-2 border-purple-400 text-purple-950 text-xs font-bold flex flex-wrap items-center justify-between gap-3 shadow-sm">
             <div className="flex items-center gap-2.5">
@@ -6870,7 +6837,6 @@ export function MainApp() {
                     </div>
                   </div>
 
-                  {/* Ô NHẬP NĂM SINH KÈM DẤU TICK TUỔI (KHÔNG TỰ QUY ĐỔI CHÉO) */}
                   <div className="col-span-3">
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-[11px] font-black uppercase text-slate-600">
@@ -6991,7 +6957,7 @@ export function MainApp() {
               </form>
             </div>
 
-            {/* CỘT 2 (5/12): HÀNG ĐỢI CHỜ ĐỌC KẾT QUẢ (CÓ ĐỒNG HỒ ĐẾM NGƯỢC) & NHẬT KÝ BM.04 HÔM NAY */}
+            {/* CỘT 2 (5/12): HÀNG ĐỢI CHỜ ĐỌC KẾT QUẢ & NHẬT KÝ BM.04 HÔM NAY */}
             <div className="lg:col-span-5 space-y-4">
               {/* Khung 2A: Hàng đợi chờ đọc kết quả */}
               <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
@@ -7021,7 +6987,6 @@ export function MainApp() {
                         SHIFT_THEME[item.caTruc] || SHIFT_THEME[1];
                       const isFromPastDate = item.ngayBC !== selectedDate;
 
-                      // Tính toán trạng thái Đồng hồ đếm ngược cho từng bệnh nhân
                       const tInfo = timers[item.id];
                       let remainMs = 0;
                       let remainRatio = 1;
@@ -7033,9 +6998,9 @@ export function MainApp() {
                         remainMs = Math.max(0, tInfo.durationMs - elapsed);
                         remainRatio = remainMs / tInfo.durationMs;
                         if (remainRatio <= 0.05) {
-                          timerLevel = "CRIT_5"; // Còn <= 5% thời gian: Nhấp nháy đỏ khẩn cấp
+                          timerLevel = "CRIT_5";
                         } else if (remainRatio <= 0.5) {
-                          timerLevel = "WARN_50"; // Còn <= 50% thời gian: Chuyển nền vàng cảnh báo
+                          timerLevel = "WARN_50";
                         } else {
                           timerLevel = "SAFE";
                         }
@@ -7095,7 +7060,6 @@ export function MainApp() {
                               </div>
                             </div>
 
-                            {/* CỤM NÚT ĐỒNG HỒ ĐẾM NGƯỢC (10' / 15' / 20') & NÚT XÓA */}
                             <div className="flex items-center gap-1 shrink-0 relative">
                               <button
                                 type="button"
@@ -7142,7 +7106,6 @@ export function MainApp() {
                             </div>
                           </div>
 
-                          {/* MENU CHỌN MỐC ĐẾM NGƯỢC 10' / 15' / 20' */}
                           {openTimerMenuId === item.id &&
                             !isLockedByOtherUser && (
                               <div className="flex flex-wrap items-center justify-between gap-1.5 bg-white/95 p-2 rounded-xl border border-sky-300 shadow-sm">
@@ -7186,7 +7149,6 @@ export function MainApp() {
                               </div>
                             )}
 
-                          {/* THANH TIẾN TRÌNH ĐẾM NGƯỢC TRỰC QUAN */}
                           {tInfo && (
                             <div className="space-y-1">
                               <div className="w-full h-1.5 rounded-full bg-white/80 overflow-hidden border border-slate-200/80">
@@ -7231,7 +7193,6 @@ export function MainApp() {
                             </div>
                           )}
 
-                          {/* Chọn kết quả: Đa chân hoặc Đơn chân */}
                           {isMulti ? (
                             <div className="space-y-2 pt-1">
                               <div className="flex items-center justify-between bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl">
@@ -7637,7 +7598,6 @@ export function MainApp() {
         {/* ==================== TAB 2: KHO HÓA CHẤT & BÀN GIAO 4 CA (BM.13) ==================== */}
         {activeTab === "BM13" && (
           <div className="space-y-4">
-            {/* Thanh điều khiển 4 Ca trực trên đầu Tab 2 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {([1, 2, 3, 4] as ShiftNumber[]).map((ca) => {
                 const m = currentDayComputed.meta[ca];
@@ -7753,7 +7713,6 @@ export function MainApp() {
               })}
             </div>
 
-            {/* Bảng chi tiết tồn kho BM.13 theo từng Xét nghiệm (Loại bỏ WIDAL) */}
             <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4 overflow-x-auto">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -8055,47 +8014,18 @@ export function MainApp() {
         <PcHandoverQrModal
           qrState={handoverQrState}
           nowMs={qrNowMs}
+          authToken={auth.token}
           cancelLoading={cancelQrLoading}
           onCancelAndUnlock={handleCancelQrFromPc}
         />
-      )}
-
-      {/* Nút nổi hỗ trợ nhập nhanh Mã PIN 4 số trên điện thoại nếu Camera mờ/chói */}
-      {!mobileQrSession && !handoverQrState && (
-        <div className="no-print fixed bottom-4 left-4 z-40">
-          <button
-            type="button"
-            onClick={() => setShowManualPinModal(true)}
-            className="px-3.5 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-amber-300 border border-amber-400/40 shadow-lg text-xs font-black flex items-center gap-1.5"
-            title="Nhập Mã PIN 4 số hiển thị trên màn hình PC để mở Checklist nhận bàn giao ca"
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span>📱 Nhập PIN Nhận Ca</span>
-          </button>
-        </div>
       )}
 
       <ManualPinClaimModal
         open={showManualPinModal}
         loading={mobileSubmitting}
         onClose={() => setShowManualPinModal(false)}
-        onSubmitPin={(pin) => claimQrHandoverSession("", pin)}
+        onSubmitPin={(pin) => claimQrHandoverSession("", pin, auth.token)}
       />
-
-      {mobileQrSession && (
-        <MobileHandoverChecklistModal
-          qrState={mobileQrSession}
-          fallbackRows={fallbackMobileSnapshotRows}
-          verifierName={auth.user.name}
-          isOnline={isOnline}
-          submitting={mobileSubmitting}
-          acceptedMustLogout={mobileAcceptedMustLogout}
-          onAcceptHandover={handleMobileAcceptHandover}
-          onRejectHandover={handleMobileRejectHandover}
-          onMandatoryMobileLogout={handleMandatoryMobileLogout}
-          onCloseWithoutAction={() => setMobileQrSession(null)}
-        />
-      )}
 
       <CompliancePrintLockModal
         state={compliancePrintState}
