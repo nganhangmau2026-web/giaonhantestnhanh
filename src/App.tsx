@@ -45,9 +45,7 @@ import {
 
 /* ============================== CẤU HÌNH KẾT NỐI ============================== */
 
-const DEFAULT_API_URL =
-  (typeof process !== "undefined" && process.env?.REACT_APP_GAS_API_URL) ||
-  "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec";
+const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec";
 
 const STORAGE_KEYS = Object.freeze({
   API_URL: "MD_API_URL_V2",
