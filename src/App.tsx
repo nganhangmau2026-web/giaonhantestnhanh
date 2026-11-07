@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- *  FRONTEND APP – QUẢN LÝ TEST NHANH MIỄN DỊCH (BM.04 / BM.13) - BẢN TỐI HẬU V13
+ *  FRONTEND APP – QUẢN LÝ TEST NHANH MIỄN DỊCH (BM.04 / BM.13) - BẢN V2031-CORE
  *  Khoa Xét Nghiệm – Bệnh viện Đa khoa Cà Mau
  *  AN INTELLECTUAL PRODUCT OF HANDSOME LONG
  * ============================================================================
@@ -45,7 +45,8 @@ import {
 
 /* ============================== CẤU HÌNH KẾT NỐI ============================== */
 
-const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec";
+const DEFAULT_API_URL =
+  "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec";
 
 const STORAGE_KEYS = Object.freeze({
   API_URL: "MD_API_URL_V2",
@@ -61,7 +62,127 @@ const STORAGE_KEYS = Object.freeze({
   OUTBOX: "MD_OUTBOX_V2",
   DATA_VERSION: "MD_DATA_VERSION_V2",
   SERVER_OFFSET: "MD_SERVER_OFFSET_V2",
+  PENDING_QR_CLAIM: "MD_PENDING_QR_CLAIM_V2031",
 });
+
+/* ====== BỘ BẮT TÍN HIỆU QR ĐỒNG BỘ TRƯỚC KHI REACT RENDER (CHỐNG LỖI ZALO/CAMERA) ====== */
+
+export interface PendingQrClaimPayload {
+  qrToken: string;
+  qrPin: string;
+  capturedAt: number;
+}
+
+function captureInitialQrFromUrl(): PendingQrClaimPayload | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const searchParams = new URLSearchParams(window.location.search || "");
+    let qrToken = (searchParams.get("handover_qr") || "").trim();
+    let qrPin = (searchParams.get("pin") || "").replace(/\D/g, "").slice(0, 4);
+
+    if (!qrToken && !qrPin && window.location.hash) {
+      const hashClean = window.location.hash.replace(/^#\/?\??/, "");
+      const hashParams = new URLSearchParams(hashClean);
+      qrToken = (hashParams.get("handover_qr") || "").trim();
+      qrPin = (hashParams.get("pin") || "").replace(/\D/g, "").slice(0, 4);
+    }
+
+    if (qrToken || qrPin) {
+      const payload: PendingQrClaimPayload = {
+        qrToken,
+        qrPin,
+        capturedAt: Date.now(),
+      };
+      // Lưu đồng thời vào cả sessionStorage và localStorage (có TTL 10 phút) để chống Zalo WebView xóa mất session
+      try {
+        window.sessionStorage.setItem(
+          STORAGE_KEYS.PENDING_QR_CLAIM,
+          JSON.stringify(payload)
+        );
+      } catch {}
+      try {
+        window.localStorage.setItem(
+          STORAGE_KEYS.PENDING_QR_CLAIM,
+          JSON.stringify(payload)
+        );
+        // XÓA NGAY TÀI KHOẢN CŨ ĐANG LƯU TRÊN ĐIỆN THOẠI ĐỂ BẮT BUỘC NGƯỜI NHẬN CA PHẢI ĐĂNG NHẬP
+        // (Chặn đứng 100% lỗi quét QR tự nhảy vào bản kiểm với tên Người giao)
+        window.localStorage.removeItem(STORAGE_KEYS.AUTH);
+        window.localStorage.removeItem(STORAGE_KEYS.CHECKER);
+      } catch {}
+
+      const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+      window.history.replaceState({}, document.title, cleanUrl);
+      return payload;
+    }
+
+    // Kiểm tra xem có phiên QR nào vừa được bắt trong vòng 10 phút chưa xử lý không
+    const rawSaved =
+      window.sessionStorage.getItem(STORAGE_KEYS.PENDING_QR_CLAIM) ||
+      window.localStorage.getItem(STORAGE_KEYS.PENDING_QR_CLAIM);
+    if (rawSaved) {
+      const parsed = JSON.parse(rawSaved) as PendingQrClaimPayload;
+      if (
+        parsed &&
+        (parsed.qrToken || parsed.qrPin) &&
+        Date.now() - Number(parsed.capturedAt || 0) < 10 * 60 * 1000
+      ) {
+        return parsed;
+      }
+      clearPendingQrClaimStorage();
+    }
+  } catch {}
+  return null;
+}
+
+export function readPendingQrClaimStorage(): PendingQrClaimPayload | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw =
+      window.sessionStorage.getItem(STORAGE_KEYS.PENDING_QR_CLAIM) ||
+      window.localStorage.getItem(STORAGE_KEYS.PENDING_QR_CLAIM);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingQrClaimPayload;
+    if (
+      parsed &&
+      (parsed.qrToken || parsed.qrPin) &&
+      Date.now() - Number(parsed.capturedAt || 0) < 10 * 60 * 1000
+    ) {
+      return parsed;
+    }
+    clearPendingQrClaimStorage();
+  } catch {}
+  return null;
+}
+
+export function writePendingQrClaimStorage(payload: PendingQrClaimPayload) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(
+      STORAGE_KEYS.PENDING_QR_CLAIM,
+      JSON.stringify(payload)
+    );
+  } catch {}
+  try {
+    window.localStorage.setItem(
+      STORAGE_KEYS.PENDING_QR_CLAIM,
+      JSON.stringify(payload)
+    );
+  } catch {}
+}
+
+export function clearPendingQrClaimStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEYS.PENDING_QR_CLAIM);
+  } catch {}
+  try {
+    window.localStorage.removeItem(STORAGE_KEYS.PENDING_QR_CLAIM);
+  } catch {}
+}
+
+// Chạy ngay lập tức trước khi React khởi tạo
+const INITIAL_CAPTURED_QR = captureInitialQrFromUrl();
 
 /* ============================== KIỂU DỮ LIỆU ============================== */
 
@@ -187,6 +308,47 @@ export interface DraftResult {
   ketQua: string;
 }
 
+export interface ShiftSnapshotRow {
+  code: string;
+  name: string;
+  unit: string;
+  tonDau: number;
+  boiHoan: number;
+  suDungQC: number;
+  suDung: number;
+  tonCuoi: number;
+}
+
+export interface HandoverQrState {
+  qrToken: string;
+  qrPin: string;
+  date: string;
+  shift: ShiftNumber;
+  senderId: string;
+  senderName: string;
+  gioGiao: string;
+  shiftData?: Record<string, { boiHoan: number; suDungQC: number }>;
+  shiftSnapshot?: ShiftSnapshotRow[];
+  status: "WAITING_SCAN" | "VERIFYING" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+  verifierId?: string;
+  verifierName?: string;
+  rejectReason?: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface CompliancePrintState {
+  required: boolean;
+  requiredForUserId: string;
+  requiredForUserName: string;
+  senderName?: string;
+  date: string;
+  shift: ShiftNumber;
+  printedBm04: boolean;
+  printedBm13: boolean;
+  acceptedAt: number;
+}
+
 /* ==================== DANH MỤC MẶC ĐỊNH & CẤU HÌNH CA ==================== */
 
 // Các mã xét nghiệm chỉ ghi nhận kết quả BM.04, KHÔNG quản lý tồn kho BM.13
@@ -252,9 +414,6 @@ export const SHIFT_INFO: Record<
   },
 };
 
-/**
- * Bảng màu nhận diện riêng cho từng Ca trực (Ca 1: Xanh dương, Ca 2: Cam, Ca 3: Xanh lá, Ca 4: Tím)
- */
 export const SHIFT_THEME: Record<
   ShiftNumber,
   {
@@ -316,7 +475,7 @@ export const SHIFT_THEME: Record<
   },
 };
 
-/* ====================== TIỆN ÍCH NGÀY GIỜ (GMT+7) ====================== */
+/* ====================== TIỆN ÍCH NGÀY GIỜ (GMT+7) & CHUẨN HÓA TUỔI 35T ====================== */
 
 let serverOffsetMs = 0;
 try {
@@ -425,8 +584,53 @@ export function formatCountdownMmSs(remainingMs: number): string {
   return `${pad2(mins)}:${pad2(secs)}`;
 }
 
+/**
+ * Chuẩn hóa lưu trữ & hiển thị Năm sinh ("1985") / Tuổi ("35T")
+ * Đảm bảo khi chọn chế độ Tuổi sẽ luôn lưu và in ra giấy A4 có chữ "T" (VD: 35T) để không nhầm với Năm sinh.
+ */
+export function formatBirthOrAgeStored(
+  rawVal: string,
+  isAgeMode?: boolean
+): string {
+  const clean = String(rawVal || "")
+    .trim()
+    .toUpperCase();
+  if (!clean) return "";
+  const numOnly = clean.replace(/T$/i, "").trim();
+  const n = Number(numOnly);
+  if (
+    isAgeMode ||
+    /T$/i.test(clean) ||
+    (Number.isInteger(n) && n >= 1 && n <= 130)
+  ) {
+    return `${numOnly}T`;
+  }
+  return numOnly;
+}
+
+export function formatBirthOrAgeDisplay(
+  rawVal: string,
+  isAgeMode?: boolean
+): { text: string; isAge: boolean } {
+  const clean = String(rawVal || "")
+    .trim()
+    .toUpperCase();
+  if (!clean) return { text: "", isAge: false };
+  const numOnly = clean.replace(/T$/i, "").trim();
+  const n = Number(numOnly);
+  const isAge =
+    Boolean(isAgeMode) ||
+    /T$/i.test(clean) ||
+    (Number.isInteger(n) && n >= 1 && n <= 130);
+  return {
+    text: isAge ? `${numOnly}T` : numOnly,
+    isAge,
+  };
+}
+
 /* ============= CHUẨN HÓA BỘ TEST ĐA CHÂN (DRUG4, DENGUE, KSTSR, WIDAL) ============= */
 
+// Giữ nguyên cấu hình thực tế tại Khoa: DRUG4 (tên thầu "test gây nghiện 4 test thử") có 5 chân thực tế không có MET
 export const MULTI_TEST_CONFIG: Record<string, string[]> = {
   DRUG4: ["MOP", "AMP", "THC", "Codein", "Heroin"],
   DENGUE: ["IgG", "IgM"],
@@ -643,9 +847,6 @@ export function validateAndNormalizeMulti(
   };
 }
 
-/**
- * Hiển thị thông minh kết quả đa chân (dùng cho cả Nhật ký BM.04 và Bản in A4).
- */
 export function formatShortMultiSummary(
   maTest: string,
   ketQua: string
@@ -772,8 +973,14 @@ export function computeDaySingle(
     3: {},
     4: {},
   };
+
+  // Khử trùng lặp tuyệt đối theo RecordID để không bao giờ tính trùng giữa BM04 và PENDING
+  const seenRecordIds = new Set<string>();
+
   const addUsage = (item: QueueItem | null | undefined) => {
     if (!item || String(item.ngayBC || "").trim() !== targetDate) return;
+    const recId = String(item.id || "").trim();
+    if (recId && seenRecordIds.has(recId)) return;
     const caNum = Number(item.caTruc);
     const ca: ShiftNumber =
       caNum === 1 || caNum === 2 || caNum === 3 || caNum === 4 ? caNum : 1;
@@ -781,6 +988,7 @@ export function computeDaySingle(
       .trim()
       .toUpperCase();
     if (!isStockTestCode(code)) return;
+    if (recId) seenRecordIds.add(recId);
     usage[ca][code] = (usage[ca][code] || 0) + 1;
   };
   bm04Logs.forEach(addUsage);
@@ -1193,7 +1401,7 @@ export function MultiPanelResultInput({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-1.5">
         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-          Chọn từng chân:
+          Chọn từng chân ({subs.length} chân):
         </span>
         <button
           type="button"
@@ -1271,13 +1479,26 @@ export function MultiPanelResultInput({
 
 /* ==================== MÀN HÌNH ĐĂNG NHẬP & MODAL XÁC THỰC ==================== */
 
+export interface LoginSuccessBundle {
+  auth: AuthState;
+  activeSession?: ActiveSession | null;
+  handoverQr?: HandoverQrState | null;
+  compliancePrint?: CompliancePrintState | null;
+  stickyShift4Date?: string;
+}
+
 interface LoginScreenProps {
   apiUrl: string;
-  onSuccess: (auth: AuthState, initialSession?: ActiveSession | null) => void;
+  hasPendingQr?: boolean;
+  onSuccess: (bundle: LoginSuccessBundle) => void;
   onChangeApiUrl: (nextUrl: string) => void;
 }
 
-export function LoginScreen({ apiUrl, onSuccess }: LoginScreenProps) {
+export function LoginScreen({
+  apiUrl,
+  hasPendingQr = false,
+  onSuccess,
+}: LoginScreenProps) {
   const [id, setId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1307,14 +1528,18 @@ export function LoginScreen({ apiUrl, onSuccess }: LoginScreenProps) {
       setError(res.body.message || "Đăng nhập thất bại.");
       return;
     }
-    onSuccess(
-      {
+    onSuccess({
+      auth: {
         token: res.body.token,
         user: res.body.user,
         mustChange: Boolean(res.body.mustChange),
       },
-      res.body.activeSession || null
-    );
+      activeSession: res.body.activeSession || null,
+      handoverQr: (res.body.handoverQr as HandoverQrState | null) || null,
+      compliancePrint:
+        (res.body.compliancePrint as CompliancePrintState | null) || null,
+      stickyShift4Date: String(res.body.stickyShift4Date || ""),
+    });
   };
 
   return (
@@ -1342,6 +1567,30 @@ export function LoginScreen({ apiUrl, onSuccess }: LoginScreenProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {hasPendingQr ? (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-emerald-500 text-emerald-950 text-xs font-bold space-y-1 shadow-sm">
+              <div className="uppercase font-black text-emerald-800 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Đã kết nối Phiên Bàn Giao Ca!</span>
+              </div>
+              <p className="font-semibold text-[11px] leading-relaxed">
+                Hệ thống đã tự động đăng xuất tài khoản cũ. Vui lòng đăng nhập
+                bằng tài khoản của{" "}
+                <strong className="underline text-emerald-950 font-black">
+                  NGƯỜI NHẬN CA
+                </strong>{" "}
+                để mở ngay bảng Checklist kiểm đếm tủ hóa chất.
+              </p>
+            </div>
+          ) : (
+            <div className="p-2.5 rounded-xl bg-sky-50/80 border border-sky-200 text-[11px] font-semibold text-sky-900 text-center">
+              💡 Nếu bạn đang cầm điện thoại nhận bàn giao ca mà không quét được
+              QR, cứ đăng nhập tài khoản của bạn — Cổng nhập{" "}
+              <strong className="font-black">Mã PIN 4 số dự phòng</strong> sẽ tự
+              động hiện ra!
+            </div>
+          )}
+
           {error && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -1381,7 +1630,11 @@ export function LoginScreen({ apiUrl, onSuccess }: LoginScreenProps) {
             disabled={loading}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 disabled:opacity-60 text-white font-black text-sm uppercase tracking-wider shadow-lg shadow-sky-600/25 transition"
           >
-            {loading ? "Đang xác thực..." : "Đăng nhập hệ thống"}
+            {loading
+              ? "Đang xác thực..."
+              : hasPendingQr
+              ? "Đăng nhập & Mở Checklist Nhận Ca"
+              : "Đăng nhập hệ thống"}
           </button>
 
           <div className="pt-3 border-t border-slate-100 text-center">
@@ -1735,6 +1988,12 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
 
   const handleConfirm = async () => {
     setErr("");
+    if (docChung === "Âm Tính") {
+      setErr(
+        "Chuẩn ISO 15189: Không được phép lưu kết quả bệnh nhân khi Vạch chứng (C) là Âm tính!"
+      );
+      return;
+    }
     const check = validateAndNormalizeMulti(item.maTest, ketQua);
     if (!check.ok) {
       setErr(check.error);
@@ -1802,30 +2061,16 @@ export function EditBM04Modal({ item, onClose, onSave }: EditBM04ModalProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between bg-indigo-50/80 p-2.5 rounded-xl border border-indigo-200">
             <span className="text-xs font-black uppercase text-indigo-900">
-              Đọc chứng (Control):
+              Đọc chứng (Control C):
             </span>
             <div className="flex items-center gap-1.5">
-              {(["Dương tính", "Âm Tính"] as DocChungValue[]).map((val) => {
-                const active = docChung === val;
-                const activeCls =
-                  val === "Dương tính"
-                    ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200"
-                    : "bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200";
-                return (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setDocChung(val)}
-                    className={`px-3.5 py-1 rounded-lg text-xs font-black border transition ${
-                      active
-                        ? activeCls
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    {val === "Dương tính" ? "● Dương tính" : "○ Âm tính"}
-                  </button>
-                );
-              })}
+              <button
+                type="button"
+                onClick={() => setDocChung("Dương tính")}
+                className="px-3.5 py-1 rounded-lg text-xs font-black border bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200"
+              >
+                ● Dương tính (Hợp lệ)
+              </button>
             </div>
           </div>
 
@@ -2173,7 +2418,7 @@ export function ClosingReviewModal({
                 <th className="py-2.5 px-3 text-left">TEST</th>
                 <th className="py-2.5 px-3 text-center">TỒN ĐẦU CA</th>
                 <th className="py-2.5 px-3 text-center">BỒI HOÀN</th>
-                <th className="py-2.5 px-3 text-center">QC/CALI</th>
+                <th className="py-2.5 px-3 text-center">QC/HỎNG</th>
                 <th className="py-2.5 px-3 text-center">SỬ DỤNG</th>
                 <th className="py-2.5 px-3 text-center">TỒN CUỐI</th>
               </tr>
@@ -2244,6 +2489,50 @@ export function ClosingReviewModal({
       </div>
     </div>
   );
+}
+/* ============ BỘ KHÓA CHỐT CA TUẦN TỰ (1 -> 2 -> 3 -> 4) & QUYỀN ADMIN ============ */
+
+/**
+ * Kiểm tra điều kiện chốt ca tuần tự:
+ * - Admin: Quyền tối thượng, luôn trả về "" (cho phép thao tác mọi ca).
+ * - User: Phải hoàn tất (HOAN_THANH) Ca 1 mới được chốt Ca 2, xong Ca 2 mới được chốt Ca 3, xong Ca 3 mới được chốt Ca 4.
+ *   Đồng thời nếu Ca 4 ngày hôm trước chưa hoàn tất bàn giao thì chưa cho phép chốt Ca 1 ngày hôm nay.
+ */
+export function getSequentialShiftBlockReason(
+  targetShift: ShiftNumber,
+  computed: DayComputed,
+  isAdmin: boolean,
+  yesterdayCa4Pending?: {
+    date: string;
+    shift: ShiftNumber;
+    status: ShiftStatus;
+    nguoiGiao: string;
+  } | null,
+  isTodaySelected = true
+): string {
+  if (isAdmin) return "";
+
+  if (yesterdayCa4Pending && isTodaySelected) {
+    return `Ca 4 ngày hôm qua (${formatDateDisplay(
+      yesterdayCa4Pending.date
+    )}) chưa hoàn tất bàn giao. Vui lòng hoàn tất Ca 4 hôm qua trước khi chốt Ca ${targetShift}!`;
+  }
+
+  for (let prev = 1; prev < targetShift; prev++) {
+    const prevCa = prev as ShiftNumber;
+    const prevMeta = computed.meta[prevCa];
+    const prevStatus = prevMeta?.trangThai || "OPEN";
+    if (prevStatus === "OPEN") {
+      return `Chốt ca tuần tự (1 → 2 → 3 → 4): Bạn phải chốt và bàn giao xong Ca ${prevCa} trước khi chốt Ca ${targetShift}!`;
+    }
+    if (prevStatus === "PENDING_RECEIVE") {
+      return `Chốt ca tuần tự: Ca ${prevCa} (giao bởi ${
+        prevMeta?.nguoiGiao || "ca trước"
+      }) đang chờ người nhận ký nhận bàn giao. Vui lòng hoàn tất nhận Ca ${prevCa} trước khi chốt Ca ${targetShift}!`;
+    }
+  }
+
+  return "";
 }
 
 /* ==================== BIỂU MẪU IN SỔ BM.04 (CHUẨN A4 NGANG) ==================== */
@@ -2374,17 +2663,38 @@ interface PrintBm04Props {
   selectedDate: string;
   logs: QueueItem[];
   testsConfig: TestConfig[];
+  forceAllFilters?: boolean;
 }
 
-export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
+export function PrintBm04({
+  selectedDate,
+  logs,
+  testsConfig,
+  forceAllFilters = false,
+}: PrintBm04Props) {
   const [filterTest, setFilterTest] = useState<string>("ALL");
   const [filterShift, setFilterShift] = useState<string>("ALL");
+
+  // Nếu đang trong chế độ Khóa cứng bắt buộc in 2 biểu mẫu Ca 4, tự động ép về ALL để in trọn vẹn cả 4 ca của ngày đó
+  useEffect(() => {
+    if (forceAllFilters) {
+      setFilterTest("ALL");
+      setFilterShift("ALL");
+    }
+  }, [forceAllFilters, selectedDate]);
+
+  const effectiveFilterTest = forceAllFilters ? "ALL" : filterTest;
+  const effectiveFilterShift = forceAllFilters ? "ALL" : filterShift;
 
   const dayLogs = useMemo(() => {
     const list = logs.filter((l) => {
       if (String(l.ngayBC || "").trim() !== selectedDate) return false;
-      if (filterTest !== "ALL" && l.maTest !== filterTest) return false;
-      if (filterShift !== "ALL" && Number(l.caTruc) !== Number(filterShift))
+      if (effectiveFilterTest !== "ALL" && l.maTest !== effectiveFilterTest)
+        return false;
+      if (
+        effectiveFilterShift !== "ALL" &&
+        Number(l.caTruc) !== Number(effectiveFilterShift)
+      )
         return false;
       return true;
     });
@@ -2393,7 +2703,7 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
       if (caDiff !== 0) return caDiff;
       return String(a.timestamp || "").localeCompare(String(b.timestamp || ""));
     });
-  }, [logs, selectedDate, filterTest, filterShift]);
+  }, [logs, selectedDate, effectiveFilterTest, effectiveFilterShift]);
 
   const ROWS_PER_PAGE = 16;
   const totalPages = Math.max(1, Math.ceil(dayLogs.length / ROWS_PER_PAGE));
@@ -2428,9 +2738,10 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
           </div>
 
           <select
-            value={filterShift}
+            value={effectiveFilterShift}
+            disabled={forceAllFilters}
             onChange={(e) => setFilterShift(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-slate-50"
+            className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-slate-50 disabled:opacity-60"
           >
             <option value="ALL">Tất cả các Ca (Ca 1 → Ca 4)</option>
             <option value="1">Chỉ in Ca 1 (07h00 - 11h00)</option>
@@ -2440,9 +2751,10 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
           </select>
 
           <select
-            value={filterTest}
+            value={effectiveFilterTest}
+            disabled={forceAllFilters}
             onChange={(e) => setFilterTest(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-slate-50"
+            className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-slate-50 disabled:opacity-60"
           >
             <option value="ALL">Tất cả loại Xét nghiệm</option>
             {testsConfig.map((t) => (
@@ -2472,7 +2784,8 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
         >
           <div className="flex items-end justify-between mb-2 border-b-2 border-black pb-1">
             <div className="text-xs font-bold">
-              Sổ lưu kết quả xét nghiệm thực hiện thủ công
+              Sổ lưu kết quả xét nghiệm thực hiện thủ công (Ngày:{" "}
+              {formatDateDisplay(selectedDate)})
             </div>
             <div className="text-xs font-bold">BM.04.XN.QTQL.37</div>
           </div>
@@ -2520,46 +2833,54 @@ export function PrintBm04({ selectedDate, logs, testsConfig }: PrintBm04Props) {
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((r, idx) => (
-                <tr
-                  key={r ? r.id : `empty_${pageIndex}_${idx}`}
-                  className="h-[36px]"
-                >
-                  <td className="border border-black px-1 py-0.5 font-semibold">
-                    {r ? pageIndex * ROWS_PER_PAGE + idx + 1 : ""}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 font-bold uppercase truncate">
-                    {r ? r.tenXetNghiem : ""}
-                  </td>
-                  <td className="border border-black px-2 py-0.5 text-left font-bold uppercase truncate">
-                    {r ? r.hoTenBN : ""}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 font-semibold">
-                    {r ? r.namSinhNam : ""}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 font-semibold">
-                    {r ? r.namSinhNu : ""}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 font-bold truncate">
-                    {r ? r.barcode : ""}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 font-semibold truncate">
-                    {r ? r.docChung : ""}
-                  </td>
-                  <td className="border border-black px-1 py-0.5">
-                    {renderKetQuaBM04(r)}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
-                    {r ? r.thoiGianDocKQ : ""}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
-                    {r ? r.nguoiThucHien : ""}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
-                    {r ? r.nguoiKiemTra : ""}
-                  </td>
-                </tr>
-              ))}
+              {pageRows.map((r, idx) => {
+                const namDisplay = r
+                  ? formatBirthOrAgeDisplay(r.namSinhNam, r.isAgeMode).text
+                  : "";
+                const nuDisplay = r
+                  ? formatBirthOrAgeDisplay(r.namSinhNu, r.isAgeMode).text
+                  : "";
+                return (
+                  <tr
+                    key={r ? r.id : `empty_${pageIndex}_${idx}`}
+                    className="h-[36px]"
+                  >
+                    <td className="border border-black px-1 py-0.5 font-semibold">
+                      {r ? pageIndex * ROWS_PER_PAGE + idx + 1 : ""}
+                    </td>
+                    <td className="border border-black px-1 py-0.5 font-bold uppercase truncate">
+                      {r ? r.tenXetNghiem : ""}
+                    </td>
+                    <td className="border border-black px-2 py-0.5 text-left font-bold uppercase truncate">
+                      {r ? r.hoTenBN : ""}
+                    </td>
+                    <td className="border border-black px-1 py-0.5 font-semibold">
+                      {namDisplay}
+                    </td>
+                    <td className="border border-black px-1 py-0.5 font-semibold">
+                      {nuDisplay}
+                    </td>
+                    <td className="border border-black px-1 py-0.5 font-bold truncate">
+                      {r ? r.barcode : ""}
+                    </td>
+                    <td className="border border-black px-1 py-0.5 font-semibold truncate">
+                      {r ? r.docChung : ""}
+                    </td>
+                    <td className="border border-black px-1 py-0.5">
+                      {renderKetQuaBM04(r)}
+                    </td>
+                    <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
+                      {r ? r.thoiGianDocKQ : ""}
+                    </td>
+                    <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
+                      {r ? r.nguoiThucHien : ""}
+                    </td>
+                    <td className="border border-black px-1 py-0.5 text-[9.5px] font-semibold truncate">
+                      {r ? r.nguoiKiemTra : ""}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
@@ -3115,7 +3436,7 @@ export function AdminPanel({
             </h3>
             <p className="text-xs font-semibold text-slate-500">
               Lưu ý: Mã WIDAL được cấu hình đặc biệt (8 chân, chỉ ghi nhận
-              BM.04, miễn trừ tồn kho BM.13).
+              BM.04, miễn trừ tồn kho BM.13). DRUG4 giữ nguyên 5 chân thực tế.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -3328,101 +3649,88 @@ export function AdminPanel({
   );
 }
 
-/* ====================== LÕI ĐIỀU PHỐI TRUNG TÂM (APP) ====================== */
+/* ====================== ÂM BÁO ĐỘNG Y TẾ & CÁC MODAL QR / PIN / KHÓA IN ====================== */
 
-type TabKey = "WORK" | "BM13" | "PRINT_BM04" | "PRINT_BM13" | "ADMIN";
+export type TabKey = "WORK" | "BM13" | "PRINT_BM04" | "PRINT_BM13" | "ADMIN";
 
-interface ToastNotice {
+export interface ToastNotice {
   id: number;
   message: string;
   type: "success" | "error" | "info";
 }
 
-function playTripleBeepAlert() {
+/**
+ * Âm báo động Y tế công suất cực đại (High-Gain Penetrating Alarm):
+ * Tối ưu hóa biên độ âm thanh và tần số sắc bén để cắt ngang tiếng ồn máy ly tâm/xét nghiệm.
+ */
+export function playTripleBeepAlert() {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
-    [0, 0.22, 0.44].forEach((offsetSec) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880, ctx.currentTime + offsetSec);
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime + offsetSec);
-      gain.gain.exponentialRampToValueAtTime(
-        0.22,
-        ctx.currentTime + offsetSec + 0.015
-      );
-      gain.gain.exponentialRampToValueAtTime(
-        0.0001,
-        ctx.currentTime + offsetSec + 0.14
-      );
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime + offsetSec);
-      osc.stop(ctx.currentTime + offsetSec + 0.15);
+
+    // Kích hoạt bộ khuếch đại nén tối đa (Max Compression & Gain) để âm thanh đạt độ lớn sắc nét nhất
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-12, ctx.currentTime);
+    compressor.knee.setValueAtTime(0, ctx.currentTime);
+    compressor.ratio.setValueAtTime(20, ctx.currentTime);
+    compressor.attack.setValueAtTime(0, ctx.currentTime);
+    compressor.release.setValueAtTime(0.2, ctx.currentTime);
+    compressor.connect(ctx.destination);
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(2.0, ctx.currentTime); // Khuếch đại biên độ x2 lần
+    masterGain.connect(compressor);
+
+    // 3 hồi bíp dồn dập (Mỗi hồi 3 tiếng) đặc trưng của thiết bị y tế cấp cứu
+    const beepOffsets = [0, 0.15, 0.3, 0.7, 0.85, 1.0, 1.4, 1.55, 1.7];
+
+    beepOffsets.forEach((offsetSec) => {
+      const startTime = ctx.currentTime + offsetSec;
+      const stopTime = startTime + 0.12;
+
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const noteGain = ctx.createGain();
+
+      osc1.type = "square";
+      osc2.type = "sawtooth";
+      osc1.frequency.setValueAtTime(1046.5, startTime); // Nốt Do cao (C6) - cực kỳ chói tai, dễ nhận biết
+      osc2.frequency.setValueAtTime(2093.0, startTime); // Nốt Do cao hơn (C7) - tạo độ ngân sắc bén
+
+      noteGain.gain.setValueAtTime(0.01, startTime);
+      noteGain.gain.linearRampToValueAtTime(1.0, startTime + 0.01);
+      noteGain.gain.setValueAtTime(1.0, startTime + 0.09);
+      noteGain.gain.linearRampToValueAtTime(0.001, stopTime);
+
+      osc1.connect(noteGain);
+      osc2.connect(noteGain);
+      noteGain.connect(masterGain);
+
+      osc1.start(startTime);
+      osc2.start(startTime);
+      osc1.stop(stopTime);
+      osc2.stop(stopTime);
     });
+
     window.setTimeout(() => {
       try {
         ctx.close();
       } catch {}
-    }, 900);
+    }, 2500);
   } catch {}
-}
-
-export interface ShiftSnapshotRow {
-  code: string;
-  name: string;
-  unit: string;
-  tonDau: number;
-  boiHoan: number;
-  suDungQC: number;
-  suDung: number;
-  tonCuoi: number;
-}
-
-export interface HandoverQrState {
-  qrToken: string;
-  qrPin: string;
-  date: string;
-  shift: ShiftNumber;
-  senderId: string;
-  senderName: string;
-  gioGiao: string;
-  shiftData?: Record<string, { boiHoan: number; suDungQC: number }>;
-  shiftSnapshot?: ShiftSnapshotRow[];
-  status: "WAITING_SCAN" | "VERIFYING" | "ACCEPTED" | "REJECTED" | "EXPIRED";
-  verifierId?: string;
-  verifierName?: string;
-  rejectReason?: string;
-  createdAt: number;
-  expiresAt: number;
-}
-
-export interface CompliancePrintState {
-  required: boolean;
-  requiredForUserId: string;
-  requiredForUserName: string;
-  senderName?: string;
-  date: string;
-  shift: ShiftNumber;
-  printedBm04: boolean;
-  printedBm13: boolean;
-  acceptedAt: number;
 }
 
 interface PcHandoverQrModalProps {
   qrState: HandoverQrState | null;
   nowMs: number;
-  authToken: string;
   cancelLoading: boolean;
   onCancelAndUnlock: () => void;
 }
 
-function PcHandoverQrModal({
+export function PcHandoverQrModal({
   qrState,
   nowMs,
-  authToken,
   cancelLoading,
   onCancelAndUnlock,
 }: PcHandoverQrModalProps) {
@@ -3438,12 +3746,10 @@ function PcHandoverQrModal({
     typeof window !== "undefined"
       ? `${window.location.origin}${window.location.pathname}`
       : "";
-  // TOKEN BRIDGE: Nhúng Token ngầm vào URL để Zalo / App quét QR đi xuyên qua màn hình Login
+
   const mobileVerifyUrl = `${baseUrl}?handover_qr=${encodeURIComponent(
     qrState.qrToken
-  )}&pin=${encodeURIComponent(qrState.qrPin)}&t=${encodeURIComponent(
-    authToken
-  )}`;
+  )}&pin=${encodeURIComponent(qrState.qrPin)}`;
 
   const primaryQrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=${encodeURIComponent(
     mobileVerifyUrl
@@ -3457,7 +3763,7 @@ function PcHandoverQrModal({
 
   return (
     <div className="no-print fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-sky-400 space-y-5 text-center animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-sky-400 space-y-4 text-center animate-in fade-in zoom-in-95 duration-200">
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sky-100 text-sky-900 text-xs font-black uppercase tracking-wider">
             <Clock className="w-4 h-4 text-sky-600 animate-spin" />
@@ -3467,7 +3773,7 @@ function PcHandoverQrModal({
             </span>
           </div>
           <h3 className="text-lg font-black uppercase text-slate-900">
-            Quét Mã QR Để Kiểm Đếm Tủ Hóa Chất
+            Quét Mã QR Hoặc Dùng Mã PIN 4 Số Dự Phòng
           </h3>
           <p className="text-xs font-semibold text-slate-600">
             Người giao:{" "}
@@ -3480,7 +3786,7 @@ function PcHandoverQrModal({
           <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-emerald-400 text-emerald-950 space-y-1 animate-pulse">
             <div className="text-xs font-black uppercase text-emerald-800 flex items-center justify-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              Đã kết nối thiết bị di động!
+              Đã kết nối thiết bị di động của Người nhận!
             </div>
             <div className="text-xs font-semibold">
               Đồng nghiệp{" "}
@@ -3491,10 +3797,15 @@ function PcHandoverQrModal({
             </div>
           </div>
         ) : (
-          <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold">
-            Người nhận bàn giao dùng Camera điện thoại, Zalo hoặc ứng dụng quét
-            mã QR bất kỳ quét mã bên dưới để mở bảng Checklist kiểm đếm tại tủ
-            lạnh.
+          <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold leading-relaxed">
+            Cách 1: Người nhận dùng Camera / Zalo quét mã QR bên dưới.
+            <br />
+            Cách 2 (Không cần QR): Người nhận tự mở link phần mềm trên điện
+            thoại và đăng nhập — cửa sổ nhập{" "}
+            <strong className="underline text-rose-700">
+              Mã PIN 4 số dự phòng
+            </strong>{" "}
+            sẽ tự động bật lên!
           </div>
         )}
 
@@ -3504,14 +3815,14 @@ function PcHandoverQrModal({
               src={useFallbackQrImg ? backupQrSrc : primaryQrSrc}
               onError={() => setUseFallbackQrImg(true)}
               alt="QR Bàn Giao Ca"
-              className="w-60 h-60 object-contain mx-auto"
+              className="w-56 h-56 object-contain mx-auto"
             />
           </div>
         </div>
 
         <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-1 shadow-inner">
           <div className="text-[10px] font-black uppercase tracking-widest text-sky-300">
-            Mã PIN Dự Phòng (Nhập trên điện thoại nếu Camera mờ/chói)
+            Mã PIN Dự Phòng (Nhập trên điện thoại nếu không quét được QR)
           </div>
           <div className="text-3xl font-black tracking-[0.35em] text-amber-300 font-mono pl-3">
             {qrState.qrPin}
@@ -3551,7 +3862,7 @@ function PcHandoverQrModal({
 const QUICK_REJECT_REASONS = [
   "Lệch số lượng tồn thực tế trong tủ hóa chất",
   "Chưa nhập hoặc nhập sai số lượng Bồi hoàn trong ca",
-  "Chưa nhập số lượng Sử dụng QC",
+  "Chưa nhập số lượng Sử dụng QC / Hỏng",
   "Còn mẫu bệnh nhân thực tế chưa vào sổ BM.04",
 ];
 
@@ -3568,7 +3879,7 @@ interface MobileHandoverChecklistModalProps {
   onCloseWithoutAction: () => void;
 }
 
-function MobileHandoverChecklistModal({
+export function MobileHandoverChecklistModal({
   qrState,
   fallbackRows,
   verifierName,
@@ -3594,9 +3905,6 @@ function MobileHandoverChecklistModal({
     QUICK_REJECT_REASONS[0]
   );
   const [customRejectDetail, setCustomRejectDetail] = useState<string>("");
-  const [verifierInput, setVerifierInput] = useState<string>(
-    verifierName || ""
-  );
 
   useEffect(() => {
     if (!storageKey) return;
@@ -3609,8 +3917,7 @@ function MobileHandoverChecklistModal({
     }
     setShowRejectBox(false);
     setCustomRejectDetail("");
-    setVerifierInput(verifierName || "");
-  }, [storageKey, verifierName]);
+  }, [storageKey]);
 
   const toggleCheckItem = (code: string) => {
     setCheckedMap((prev) => {
@@ -3632,12 +3939,9 @@ function MobileHandoverChecklistModal({
   const progressPct =
     totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
   const displayVerifierName =
-    verifierInput.trim() ||
-    verifierName ||
-    qrState.verifierName ||
-    "Người nhận";
+    verifierName || qrState.verifierName || "Người nhận";
 
-  // MÀN HÌNH BẮT BUỘC ĐĂNG XUẤT TRÊN ĐIỆN THOẠI SAU KHI KÝ NHẬN THÀNH CÔNG
+  // MÀN HÌNH BẮT BUỘC ĐĂNG XUẤT TRÊN ĐIỆN THOẠI SAU KHI KÝ NHẬN THÀNH CÔNG (KHÓA CỨNG 100%)
   if (acceptedMustLogout) {
     return (
       <div className="no-print fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
@@ -3671,11 +3975,17 @@ function MobileHandoverChecklistModal({
               <strong className="text-rose-700 underline">
                 Đăng xuất khỏi điện thoại
               </strong>{" "}
-              ngay bên dưới để giải phóng phiên trên thiết bị di động.
+              ngay bên dưới để đóng phiên kiểm đếm di động.
             </p>
             <p className="text-xs font-semibold leading-relaxed">
-              2. Mời bạn bước ra máy tính (PC) đăng nhập để bắt đầu làm việc
-              chuyên môn trên PC.
+              2. Mời bạn bước ra máy tính (PC) đăng nhập tài khoản{" "}
+              <strong className="text-slate-900">{displayVerifierName}</strong>{" "}
+              để làm việc chuyên môn
+              {Number(qrState.shift) === 4
+                ? ` (Khi đăng nhập vào PC, hệ thống sẽ tự động mở khóa cứng yêu cầu in đủ 2 sổ BM.04 & BM.13 của ngày ${formatDateDisplay(
+                    qrState.date
+                  )} trước khi sang ngày mới).`
+                : "."}
             </p>
           </div>
 
@@ -3701,7 +4011,6 @@ function MobileHandoverChecklistModal({
 
   return (
     <div className="no-print fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col justify-between overflow-hidden">
-      {/* Header cố định trên điện thoại */}
       <div className="bg-slate-900 text-white px-4 py-3 border-b border-slate-700 shadow-md shrink-0">
         <div className="max-w-lg mx-auto space-y-2">
           <div className="flex items-center justify-between gap-2">
@@ -3728,7 +4037,6 @@ function MobileHandoverChecklistModal({
             </span>
           </div>
 
-          {/* Thanh tiến trình tích chọn 100% */}
           <div className="space-y-1 pt-0.5">
             <div className="flex items-center justify-between text-[11px] font-black">
               <span
@@ -3767,7 +4075,6 @@ function MobileHandoverChecklistModal({
         </div>
       </div>
 
-      {/* Danh sách Card kiểm đếm tối ưu cho màn hình dọc điện thoại */}
       <div className="flex-1 overflow-y-auto px-3 py-3">
         <div className="max-w-lg mx-auto space-y-2.5 pb-6">
           {rows.map((r, idx) => {
@@ -3845,7 +4152,6 @@ function MobileHandoverChecklistModal({
         </div>
       </div>
 
-      {/* Cụm nút hành động cố định dưới đáy điện thoại */}
       <div className="bg-white border-t-2 border-slate-200 p-3.5 shadow-2xl shrink-0">
         <div className="max-w-lg mx-auto space-y-2.5">
           {showRejectBox ? (
@@ -3919,22 +4225,18 @@ function MobileHandoverChecklistModal({
             <div className="space-y-2">
               {isAllChecked ? (
                 <div className="space-y-2">
-                  <div className="px-3 py-2 bg-emerald-50 border border-emerald-300 rounded-xl">
-                    <label className="block text-[11px] font-black uppercase text-emerald-800 mb-1">
-                      Xác nhận họ tên người nhận bàn giao:
-                    </label>
-                    <input
-                      type="text"
-                      value={verifierInput}
-                      onChange={(e) => setVerifierInput(e.target.value)}
-                      placeholder="Nhập họ tên người nhận ca..."
-                      className="w-full px-3 py-2 border border-emerald-400 rounded-lg text-sm font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
+                  <div className="px-3 py-2 bg-emerald-50 border border-emerald-300 rounded-xl text-center">
+                    <span className="block text-[11px] font-black uppercase text-emerald-800 mb-0.5">
+                      Xác nhận nhận bàn giao với tên:
+                    </span>
+                    <span className="text-sm font-black text-slate-900">
+                      {displayVerifierName}
+                    </span>
                   </div>
                   <button
                     type="button"
-                    disabled={submitting || verifierInput.trim().length === 0}
-                    onClick={() => onAcceptHandover(verifierInput.trim())}
+                    disabled={submitting}
+                    onClick={() => onAcceptHandover(displayVerifierName)}
                     className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-black uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition"
                   >
                     <CheckCircle2 className="w-5 h-5" />
@@ -3965,7 +4267,7 @@ function MobileHandoverChecklistModal({
                   onClick={onCloseWithoutAction}
                   className="col-span-4 py-2.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold"
                 >
-                  Đóng tạm
+                  Đổi TK / Thoát
                 </button>
               </div>
             </div>
@@ -3976,19 +4278,27 @@ function MobileHandoverChecklistModal({
   );
 }
 
-/* ====== MODAL NHẬP MÃ PIN 4 SỐ DỰ PHÒNG TRÊN ĐIỆN THOẠI ====== */
+/* ====== CỔNG CHẶN NHẬP MÃ PIN 4 SỐ DỰ PHÒNG TRÊN ĐIỆN THOẠI (CHẶN BAY THẲNG VÀO APP) ====== */
 
 interface ManualPinClaimModalProps {
   open: boolean;
   loading: boolean;
+  interceptMode?: boolean;
+  pendingQrInfo?: HandoverQrState | null;
+  currentUserName?: string;
   onClose: () => void;
+  onLogout?: () => void;
   onSubmitPin: (pin: string) => void;
 }
 
-function ManualPinClaimModal({
+export function ManualPinClaimModal({
   open,
   loading,
+  interceptMode = false,
+  pendingQrInfo = null,
+  currentUserName = "",
   onClose,
+  onLogout,
   onSubmitPin,
 }: ManualPinClaimModalProps) {
   const [pinInput, setPinInput] = useState("");
@@ -3999,45 +4309,97 @@ function ManualPinClaimModal({
 
   if (!open) return null;
 
+  const handleConfirm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput.length < 4 || loading) return;
+    onSubmitPin(pinInput);
+  };
+
   return (
-    <div className="no-print fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-center">
-        <h3 className="text-base font-black uppercase text-slate-900">
-          Nhập Mã PIN 4 Số Nhận Bàn Giao Ca
-        </h3>
-        <p className="text-xs font-semibold text-slate-500">
-          Nhập 4 chữ số Mã PIN đang hiển thị dưới mã QR trên màn hình PC để mở
-          bảng Checklist kiểm đếm.
-        </p>
+    <div className="no-print fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+      <form
+        onSubmit={handleConfirm}
+        className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-amber-400 space-y-4 text-center"
+      >
+        <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto shadow-inner">
+          <KeyRound className="w-7 h-7" />
+        </div>
+
+        <div className="space-y-1.5">
+          <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-[11px] font-black uppercase">
+            {pendingQrInfo
+              ? `Đang Chờ Nhận Bàn Giao Ca ${
+                  pendingQrInfo.shift
+                } (${formatDateDisplay(pendingQrInfo.date)})`
+              : "Cổng Xác Thực Mã PIN Bàn Giao Ca"}
+          </span>
+          <h3 className="text-base font-black uppercase text-slate-900 leading-snug pt-1">
+            Rất tiếc bạn đã không sử dụng được QRcode, vui lòng nhập mã PIN dự
+            phòng
+          </h3>
+          {pendingQrInfo && (
+            <p className="text-xs font-semibold text-slate-600">
+              Người giao:{" "}
+              <strong className="text-slate-900">
+                {pendingQrInfo.senderName}
+              </strong>{" "}
+              • Người nhận:{" "}
+              <strong className="text-emerald-700">{currentUserName}</strong>
+            </p>
+          )}
+        </div>
+
+        <div className="p-3 rounded-2xl bg-sky-50 border border-sky-200 text-sky-950 text-xs font-semibold leading-relaxed">
+          Vui lòng nhìn lên màn hình máy tính (PC) và nhập{" "}
+          <strong className="font-black text-rose-600">
+            4 chữ số Mã PIN Dự Phòng
+          </strong>{" "}
+          bên dưới để mở ngay{" "}
+          <strong className="underline">Bảng Checklist Kiểm Đếm</strong> (Hệ
+          thống khóa cổng không cho vào giao diện chính cho đến khi hoàn tất
+          kiểm đếm nhận ca).
+        </div>
+
         <input
           type="text"
           inputMode="numeric"
+          autoFocus
           maxLength={4}
           value={pinInput}
           onChange={(e) =>
             setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))
           }
           placeholder="••••"
-          className="w-full py-3 rounded-2xl border-2 border-sky-400 text-center text-3xl font-black tracking-[0.4em] text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+          className="w-full py-3.5 rounded-2xl border-2 border-sky-500 text-center text-3xl font-black tracking-[0.4em] text-slate-900 font-mono focus:outline-none focus:ring-4 focus:ring-sky-500/20"
         />
+
         <div className="flex items-center gap-2 pt-1">
+          {interceptMode ? (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase"
+            >
+              Đăng xuất / Đổi TK
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase"
+            >
+              Đóng
+            </button>
+          )}
           <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
+            type="submit"
             disabled={pinInput.length < 4 || loading}
-            onClick={() => onSubmitPin(pinInput)}
-            className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase shadow-md"
+            className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-black uppercase shadow-lg transition"
           >
-            {loading ? "Đang mở..." : "Mở Checklist"}
+            {loading ? "Đang mở Checklist..." : "Mở Bản Checklist →"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
@@ -4051,7 +4413,7 @@ interface CompliancePrintLockModalProps {
   onTriggerPrintForm: (form: "BM04" | "BM13") => void;
 }
 
-function CompliancePrintLockModal({
+export function CompliancePrintLockModal({
   state,
   activeTab,
   printingForm,
@@ -4070,7 +4432,7 @@ function CompliancePrintLockModal({
       <div className="no-print fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-2xl w-[95%] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border-2 border-amber-400 flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs font-bold">
           <span className="text-amber-300 font-black uppercase">
-            ⚠️ Khóa cứng bắt buộc in 2 biểu mẫu (Ca {state.shift} -{" "}
+            ⚠️ Khóa cứng bắt buộc in 2 biểu mẫu (Ca {state.shift} - Ngày{" "}
             {formatDateDisplay(state.date)}):
           </span>{" "}
           BM.04 [{state.printedBm04 ? "✅ Đã in" : "⏳ Chưa in"}] • BM.13 [
@@ -4086,7 +4448,7 @@ function CompliancePrintLockModal({
                 : "bg-amber-500 text-slate-950"
             }`}
           >
-            🖨️ In BM.04
+            🖨️ In BM.04 ({formatDateDisplay(state.date)})
           </button>
           <button
             type="button"
@@ -4097,7 +4459,7 @@ function CompliancePrintLockModal({
                 : "bg-amber-500 text-slate-950"
             }`}
           >
-            🖨️ In BM.13
+            🖨️ In BM.13 ({formatDateDisplay(state.date)})
           </button>
           <button
             type="button"
@@ -4123,12 +4485,13 @@ function CompliancePrintLockModal({
             Khóa Cứng Tuân Thủ ISO 15189 • Chốt Ca 4 Cuối Ngày
           </span>
           <h3 className="text-lg font-black uppercase text-slate-900 leading-snug">
-            Bạn Phải In Cả 2 Biểu Mẫu Mới Có Thể Bắt Đầu Phiên Làm Việc Mới!
+            Bạn Phải In Cả 2 Biểu Mẫu Của Ngày {formatDateDisplay(state.date)}{" "}
+            Mới Có Thể Bắt Đầu Phiên Làm Việc Mới!
           </h3>
           <p className="text-xs font-semibold text-slate-600">
             Ca trực vừa nhận bàn giao:{" "}
             <strong className="text-slate-900">
-              Ca {state.shift} ({formatDateDisplay(state.date)})
+              Ca {state.shift} (Ngày làm việc: {formatDateDisplay(state.date)})
             </strong>{" "}
             • Người nhận:{" "}
             <strong className="text-emerald-700">
@@ -4138,13 +4501,14 @@ function CompliancePrintLockModal({
         </div>
 
         <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-bold text-left leading-relaxed">
-          Mọi chức năng tiếp nhận bệnh nhân, nhập kết quả và điều chỉnh tồn kho
-          đang được{" "}
-          <strong className="text-rose-700 underline">
-            khóa cứng tạm thời
-          </strong>
-          . Hệ thống sẽ tự động mở khóa ngay sau khi bạn bấm in hoàn tất 2 biểu
-          mẫu tổng kết 4 ca của ngày {formatDateDisplay(state.date)} bên dưới:
+          Hệ thống đã{" "}
+          <strong className="text-sky-800 underline">
+            neo cứng dữ liệu ở ngày {formatDateDisplay(state.date)}
+          </strong>{" "}
+          (trọn vẹn 4 ca: Ca 1, Ca 2, Ca 3, Ca 4 của ngày{" "}
+          {formatDateDisplay(state.date)}, tuyệt đối không bị nhảy nhầm sang
+          trang trắng ngày mới). Ngay sau khi bạn bấm in đủ 2 biểu mẫu bên dưới,
+          hệ thống sẽ tự động mở khóa và chuyển sang Ca 1 của ngày mới!
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -4181,7 +4545,7 @@ function CompliancePrintLockModal({
               </span>
             </div>
             <div className="text-[11px] font-semibold opacity-85">
-              Sổ lưu kết quả xét nghiệm ngày {formatDateDisplay(state.date)}
+              Trọn bộ 4 ca ngày {formatDateDisplay(state.date)}
             </div>
           </button>
 
@@ -4218,7 +4582,7 @@ function CompliancePrintLockModal({
               </span>
             </div>
             <div className="text-[11px] font-semibold opacity-85">
-              Sổ bàn giao tồn kho hóa chất 4 ca
+              Tồn kho 4 ca ngày {formatDateDisplay(state.date)}
             </div>
           </button>
         </div>
@@ -4236,6 +4600,8 @@ function CompliancePrintLockModal({
     </div>
   );
 }
+/* ====================== LÕI ĐIỀU PHỐI TRUNG TÂM (MAIN APP - PHẦN 4.1) ====================== */
+
 export function MainApp() {
   const [apiUrl, setApiUrl] = usePersistentState<string>(
     STORAGE_KEYS.API_URL,
@@ -4349,9 +4715,11 @@ export function MainApp() {
   const [selectedDate, setSelectedDate] = useState<string>(() =>
     businessDate()
   );
+  const [stickyShift4Date, setStickyShift4Date] = useState<string>("");
   const [adminShiftOverride, setAdminShiftOverride] =
     useState<ShiftNumber | null>(null);
   const datePickedRef = useRef<boolean>(false);
+  const loadedCloudDateRef = useRef<string>("");
 
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(
     null
@@ -4399,10 +4767,9 @@ export function MainApp() {
   const [compliancePrintState, setCompliancePrintState] =
     useState<CompliancePrintState | null>(null);
 
-  // State cho Mobile Checklist khi quét QR (hỗ trợ Token Bridge)
+  // State cho Mobile Checklist & Cổng chặn PIN dự phòng
   const [mobileQrSession, setMobileQrSession] =
     useState<HandoverQrState | null>(null);
-  const [mobileAuthToken, setMobileAuthToken] = useState<string>("");
   const [mobileSubmitting, setMobileSubmitting] = useState<boolean>(false);
   const [mobileAcceptedMustLogout, setMobileAcceptedMustLogout] =
     useState<boolean>(false);
@@ -4410,30 +4777,11 @@ export function MainApp() {
   const [printingFormLock, setPrintingFormLock] = useState<
     "BM04" | "BM13" | null
   >(null);
-
-  // Bắt tham số ?handover_qr=...&pin=...&t=... từ Camera / Zalo / App quét QR
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const qrToken = params.get("handover_qr");
-    const qrPin = params.get("pin");
-    const autoToken = params.get("t");
-
-    if (qrToken || qrPin || autoToken) {
-      try {
-        window.sessionStorage.setItem(
-          "PENDING_QR_HANDOVER_CLAIM",
-          JSON.stringify({
-            qrToken: qrToken || "",
-            qrPin: qrPin || "",
-            autoToken: autoToken || "",
-          })
-        );
-      } catch {}
-      const cleanUrl = `${window.location.origin}${window.location.pathname}`;
-      window.history.replaceState({}, document.title, cleanUrl);
-    }
-  }, []);
+  const [hasPendingQrClaim, setHasPendingQrClaim] = useState<boolean>(() =>
+    Boolean(INITIAL_CAPTURED_QR || readPendingQrClaimStorage())
+  );
+  const claimingQrRef = useRef<boolean>(false);
+  const bm13DebounceRef = useRef<number | null>(null);
 
   const notify = useCallback(
     (message: string, type: "success" | "error" | "info" = "info") => {
@@ -4441,7 +4789,7 @@ export function MainApp() {
       setToasts((prev) => [...prev.slice(-3), { id, message, type }]);
       window.setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 4200);
+      }, 4500);
     },
     []
   );
@@ -4468,7 +4816,7 @@ export function MainApp() {
     return () => window.clearInterval(timerId);
   }, [hasActiveTimers]);
 
-  // Phát 3 tiếng "Tít - Tít - Tít" khi đồng hồ chạm mốc 00:00
+  // Phát âm báo động to rõ khi đồng hồ chạm mốc 00:00
   useEffect(() => {
     if (!hasActiveTimers) return;
     let shouldBeep = false;
@@ -4499,14 +4847,6 @@ export function MainApp() {
       return next;
     });
   }, [pendingQueue, setTimers]);
-
-  // Tự động chuyển sang ngày làm việc mới nếu người dùng không bấm chọn ngày lịch sử
-  useEffect(() => {
-    if (!datePickedRef.current && selectedDate !== todayStr) {
-      setSelectedDate(todayStr);
-      setAdminShiftOverride(null);
-    }
-  }, [todayStr, selectedDate]);
 
   const isAdmin = Boolean(auth?.user.role === "Admin");
 
@@ -4550,6 +4890,142 @@ export function MainApp() {
     ]
   );
 
+  const yesterdayCa4PendingBlock = useMemo(() => {
+    const realYesterday = addDays(todayStr, -1);
+    const hasPrevActivity =
+      bm13Raw.some((r) => r.ngayBC === realYesterday) ||
+      bm04Logs.some((l) => l.ngayBC === realYesterday) ||
+      pendingQueue.some((p) => p.ngayBC === realYesterday);
+    if (!hasPrevActivity) return null;
+    const realYesterdayComp =
+      realYesterday === selectedDate
+        ? currentDayComputed
+        : realYesterday === prevDateStr
+        ? prevDayComputed
+        : computeDaySingle(
+            realYesterday,
+            testsConfig,
+            bm04Logs,
+            pendingQueue,
+            bm13Raw,
+            dirtyBm13,
+            null
+          );
+    const ca4Meta = realYesterdayComp.meta[4];
+    if (ca4Meta && ca4Meta.trangThai !== "HOAN_THANH") {
+      return {
+        date: realYesterday,
+        shift: 4 as ShiftNumber,
+        status: ca4Meta.trangThai,
+        nguoiGiao: ca4Meta.nguoiGiao,
+      };
+    }
+    return null;
+  }, [
+    todayStr,
+    selectedDate,
+    prevDateStr,
+    currentDayComputed,
+    prevDayComputed,
+    testsConfig,
+    bm13Raw,
+    bm04Logs,
+    pendingQueue,
+    dirtyBm13,
+  ]);
+
+  // NEO NGÀY LÀM VIỆC CA 4 (STICKY SHIFT-4 DATE):
+  // Nếu đang bị khóa bắt buộc in 2 biểu mẫu Ca 4 hoặc Ca 4 hôm qua đang chờ nhận bàn giao,
+  // neo cứng selectedDate ở ngày của Ca 4 đó (VD: 06/11/2026) để không bao giờ bị nhảy sang ngày 07/11 trống trơn!
+  const anchoredBusinessDate = useMemo(() => {
+    if (
+      compliancePrintState?.required &&
+      Number(compliancePrintState.shift) === 4 &&
+      isDateStr(compliancePrintState.date)
+    ) {
+      return compliancePrintState.date;
+    }
+    if (isDateStr(stickyShift4Date)) {
+      return stickyShift4Date;
+    }
+    if (
+      yesterdayCa4PendingBlock &&
+      yesterdayCa4PendingBlock.status === "PENDING_RECEIVE"
+    ) {
+      return yesterdayCa4PendingBlock.date;
+    }
+    return todayStr;
+  }, [
+    compliancePrintState,
+    stickyShift4Date,
+    yesterdayCa4PendingBlock,
+    todayStr,
+  ]);
+
+  useEffect(() => {
+    if (
+      compliancePrintState?.required &&
+      Number(compliancePrintState.shift) === 4 &&
+      isDateStr(compliancePrintState.date)
+    ) {
+      if (selectedDate !== compliancePrintState.date) {
+        setSelectedDate(compliancePrintState.date);
+        setAdminShiftOverride(null);
+      }
+      return;
+    }
+    if (!datePickedRef.current && selectedDate !== anchoredBusinessDate) {
+      setSelectedDate(anchoredBusinessDate);
+      setAdminShiftOverride(null);
+    }
+  }, [compliancePrintState, anchoredBusinessDate, selectedDate]);
+
+  // Ngày thực tế dùng cho 2 biểu mẫu in BM.04 & BM.13 (đảm bảo 100% khi khóa in Ca 4 luôn lấy đúng ngày Ca 4)
+  const effectivePrintDate = useMemo(() => {
+    if (
+      compliancePrintState?.required &&
+      Number(compliancePrintState.shift) === 4 &&
+      isDateStr(compliancePrintState.date)
+    ) {
+      return compliancePrintState.date;
+    }
+    return selectedDate;
+  }, [compliancePrintState, selectedDate]);
+
+  const effectivePrintDayComputed = useMemo(() => {
+    if (effectivePrintDate === selectedDate) return currentDayComputed;
+    if (effectivePrintDate === prevDateStr) return prevDayComputed;
+    const prevOfPrint = computeDaySingle(
+      addDays(effectivePrintDate, -1),
+      testsConfig,
+      bm04Logs,
+      pendingQueue,
+      bm13Raw,
+      dirtyBm13,
+      null
+    );
+    return computeDaySingle(
+      effectivePrintDate,
+      testsConfig,
+      bm04Logs,
+      pendingQueue,
+      bm13Raw,
+      dirtyBm13,
+      prevOfPrint.tonCuoiNgay
+    );
+  }, [
+    effectivePrintDate,
+    selectedDate,
+    prevDateStr,
+    currentDayComputed,
+    prevDayComputed,
+    testsConfig,
+    bm04Logs,
+    pendingQueue,
+    bm13Raw,
+    dirtyBm13,
+  ]);
+
   const effectiveShift: ShiftNumber = useMemo(() => {
     for (const ca of [1, 2, 3, 4] as ShiftNumber[]) {
       const st = currentDayComputed.meta[ca]?.trangThai || "OPEN";
@@ -4564,24 +5040,6 @@ export function MainApp() {
     if (isAdmin && adminShiftOverride) return adminShiftOverride;
     return effectiveShift;
   }, [isAdmin, adminShiftOverride, effectiveShift]);
-
-  const yesterdayCa4PendingBlock = useMemo(() => {
-    const hasPrevActivity =
-      bm13Raw.some((r) => r.ngayBC === prevDateStr) ||
-      bm04Logs.some((l) => l.ngayBC === prevDateStr) ||
-      pendingQueue.some((p) => p.ngayBC === prevDateStr);
-    if (!hasPrevActivity) return null;
-    const ca4Meta = prevDayComputed.meta[4];
-    if (ca4Meta && ca4Meta.trangThai !== "HOAN_THANH") {
-      return {
-        date: prevDateStr,
-        shift: 4 as ShiftNumber,
-        status: ca4Meta.trangThai,
-        nguoiGiao: ca4Meta.nguoiGiao,
-      };
-    }
-    return null;
-  }, [prevDateStr, bm13Raw, bm04Logs, pendingQueue, prevDayComputed.meta]);
 
   const currentShiftHandoverBlock = useMemo(() => {
     for (const ca of [1, 2, 3, 4] as ShiftNumber[]) {
@@ -4710,15 +5168,17 @@ export function MainApp() {
   const syncFromCloud = useCallback(
     async (forceFull = false, targetDateOverride?: string) => {
       if (!auth || auth.mustChange) return;
-      if (flushingRef.current) return;
+      if (flushingRef.current || claimingQrRef.current) return;
 
+      const reqDate = targetDateOverride || selectedDate;
       setIsSyncing(true);
       const res = await rpcCall(
         apiUrl,
         "getInitData",
         {
           knownVersion: forceFull ? "" : dataVersion,
-          targetDate: targetDateOverride || selectedDate,
+          targetDate: reqDate,
+          loadedDate: loadedCloudDateRef.current,
         },
         auth.token
       );
@@ -4744,6 +5204,31 @@ export function MainApp() {
       if (res.body.activeSession !== undefined) {
         setActiveSession(res.body.activeSession || null);
       }
+      if (typeof res.body.stickyShift4Date === "string") {
+        setStickyShift4Date(res.body.stickyShift4Date);
+      }
+
+      // Đồng bộ trạng thái QR & Khóa cứng in ấn Ca 4 ngay trong getInitData (chống mất QR khi F5 trên PC)
+      if (res.body.handoverQr !== undefined) {
+        const remoteQr = res.body.handoverQr as HandoverQrState | null;
+        if (
+          remoteQr &&
+          (remoteQr.status === "WAITING_SCAN" ||
+            remoteQr.status === "VERIFYING")
+        ) {
+          setHandoverQrState(remoteQr);
+        } else if (!remoteQr) {
+          setHandoverQrState(null);
+        }
+      }
+
+      if (res.body.compliancePrint !== undefined) {
+        const remoteComp =
+          (res.body.compliancePrint as CompliancePrintState | null) || null;
+        // Chỉ hiển thị bảng khóa in Ca 4 nếu PC không phải đang đứng ở màn hình chờ QR của Người giao
+        setCompliancePrintState(remoteComp);
+      }
+
       if (res.body.mustChange) {
         setAuth((prev) => (prev ? { ...prev, mustChange: true } : prev));
         return;
@@ -4753,6 +5238,7 @@ export function MainApp() {
       }
 
       if (flushingRef.current) return;
+      loadedCloudDateRef.current = reqDate;
 
       if (
         Array.isArray(res.body.testsConfig) &&
@@ -4864,7 +5350,8 @@ export function MainApp() {
         !auth ||
         auth.mustChange ||
         isLockedByOtherUser ||
-        flushingRef.current
+        flushingRef.current ||
+        claimingQrRef.current
       )
         return;
       if (unpauseAll) {
@@ -5040,28 +5527,82 @@ export function MainApp() {
   );
 
   useEffect(() => {
-    if (!auth || auth.mustChange || isLockedByOtherUser) return;
+    if (
+      !auth ||
+      auth.mustChange ||
+      isLockedByOtherUser ||
+      hasPendingQrClaim ||
+      Boolean(mobileQrSession)
+    )
+      return;
     flushOutbox(false);
     const timer = window.setInterval(() => {
       flushOutbox(false);
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [auth, isLockedByOtherUser, outbox, flushOutbox]);
+  }, [
+    auth,
+    isLockedByOtherUser,
+    hasPendingQrClaim,
+    mobileQrSession,
+    outbox,
+    flushOutbox,
+  ]);
 
   useEffect(() => {
-    if (!auth || auth.mustChange) return;
+    if (
+      !auth ||
+      auth.mustChange ||
+      hasPendingQrClaim ||
+      Boolean(mobileQrSession)
+    )
+      return;
     syncFromCloud(true, selectedDate);
     const timer = window.setInterval(() => {
       syncFromCloud(false, selectedDate);
     }, 18000);
     return () => window.clearInterval(timer);
-  }, [auth?.token, auth?.mustChange, selectedDate, syncFromCloud]);
+  }, [
+    auth?.token,
+    auth?.mustChange,
+    hasPendingQrClaim,
+    mobileQrSession,
+    selectedDate,
+    syncFromCloud,
+  ]);
 
   /* ==================== KHÓA PHIÊN (HEARTBEAT PING SESSION) ==================== */
 
+  // Kiểm tra xem có phiên QR đang mở mà tài khoản hiện tại KHÔNG phải người giao hay không
+  // Nếu có -> Hệ thống đang chặn ở cổng PIN / Checklist của Người nhận, tuyệt đối không gọi pingSession tranh quyền PC!
+  const isReceiverInActiveHandoverFlow = useMemo(() => {
+    if (!auth) return false;
+    if (hasPendingQrClaim || mobileQrSession) return true;
+    if (
+      handoverQrState &&
+      (handoverQrState.status === "WAITING_SCAN" ||
+        handoverQrState.status === "VERIFYING")
+    ) {
+      const isSender =
+        (handoverQrState.senderId &&
+          handoverQrState.senderId.trim().toLowerCase() ===
+            auth.user.id.trim().toLowerCase()) ||
+        handoverQrState.senderName.trim().toLowerCase() ===
+          auth.user.name.trim().toLowerCase();
+      if (!isSender) return true;
+    }
+    return false;
+  }, [auth, hasPendingQrClaim, mobileQrSession, handoverQrState]);
+
   const pingCurrentSession = useCallback(
     async (forceTakeover = false) => {
-      if (!auth || auth.mustChange) return;
+      if (
+        !auth ||
+        auth.mustChange ||
+        claimingQrRef.current ||
+        isReceiverInActiveHandoverFlow
+      )
+        return;
       const res = await rpcCall(
         apiUrl,
         "pingSession",
@@ -5080,7 +5621,7 @@ export function MainApp() {
         }
         if (forceTakeover) {
           notify(
-            `Đã tiếp quản phiên làm việc thành công! Bạn đang giữ phiên chính thức.`,
+            "Đã tiếp quản phiên làm việc thành công! Bạn đang giữ phiên chính thức.",
             "success"
           );
         }
@@ -5094,11 +5635,25 @@ export function MainApp() {
         }
       }
     },
-    [auth, apiUrl, selectedDate, viewShift, checker?.name, notify]
+    [
+      auth,
+      isReceiverInActiveHandoverFlow,
+      apiUrl,
+      selectedDate,
+      viewShift,
+      checker?.name,
+      notify,
+    ]
   );
 
   useEffect(() => {
-    if (!auth || auth.mustChange || isSessionHeldByOther) return;
+    if (
+      !auth ||
+      auth.mustChange ||
+      isSessionHeldByOther ||
+      isReceiverInActiveHandoverFlow
+    )
+      return;
     pingCurrentSession(false);
     const t = window.setInterval(() => {
       pingCurrentSession(false);
@@ -5108,6 +5663,7 @@ export function MainApp() {
     auth?.token,
     auth?.mustChange,
     isSessionHeldByOther,
+    isReceiverInActiveHandoverFlow,
     selectedDate,
     viewShift,
     checker?.name,
@@ -5156,7 +5712,7 @@ export function MainApp() {
         currentShiftHandoverBlock.date
       )} đã chốt giao bởi [${
         currentShiftHandoverBlock.nguoiGiao
-      }] và đang chờ ký nhận. Vui lòng sang Tab 2 để Nhận bàn giao trước khi làm việc tiếp!`;
+      }] và đang chờ kiểm đếm nhận ca. Vui lòng hoàn tất nhận bàn giao trước khi làm việc tiếp!`;
     }
     return "";
   }, [
@@ -5219,9 +5775,9 @@ export function MainApp() {
 
     const cleanName = hoTenBN.trim().toUpperCase();
     const cleanBc = barcode.trim();
-    const cleanYear = namSinh.trim();
+    const cleanYearRaw = namSinh.trim().replace(/T$/i, "").trim();
     const currentYear = getVnParts().year;
-    const yearNum = Number(cleanYear);
+    const yearNum = Number(cleanYearRaw);
 
     if (!cleanName) {
       notify("Vui lòng nhập Họ và tên bệnh nhân.", "error");
@@ -5229,7 +5785,7 @@ export function MainApp() {
     }
     if (isAgeMode) {
       if (
-        !cleanYear ||
+        !cleanYearRaw ||
         !Number.isInteger(yearNum) ||
         yearNum < 1 ||
         yearNum > 130
@@ -5238,10 +5794,11 @@ export function MainApp() {
           "Tuổi không hợp lệ (Vui lòng nhập số nguyên từ 1 đến 130).",
           "error"
         );
+        return;
       }
     } else {
       if (
-        !cleanYear ||
+        !cleanYearRaw ||
         !Number.isInteger(yearNum) ||
         yearNum < 1900 ||
         yearNum > currentYear
@@ -5262,6 +5819,9 @@ export function MainApp() {
       return;
     }
 
+    // Chuẩn hóa lưu "35T" nếu chọn chế độ Tuổi
+    const storedBirthOrAge = formatBirthOrAgeStored(cleanYearRaw, isAgeMode);
+
     const catalogMap: Record<string, string> = {};
     testsConfig.forEach((t) => {
       catalogMap[t.code] = t.name;
@@ -5279,8 +5839,8 @@ export function MainApp() {
         tenXetNghiem: catalogMap[upperCode] || upperCode,
         maTest: upperCode,
         hoTenBN: cleanName,
-        namSinhNam: gioiTinh === "Nam" ? cleanYear : "",
-        namSinhNu: gioiTinh === "Nu" ? cleanYear : "",
+        namSinhNam: gioiTinh === "Nam" ? storedBirthOrAge : "",
+        namSinhNu: gioiTinh === "Nu" ? storedBirthOrAge : "",
         isAgeMode,
         barcode: cleanBc,
         docChung: docChungDefault,
@@ -5310,8 +5870,119 @@ export function MainApp() {
     setBarcode("");
     setSelectedTestCodes([]);
     notify(
-      `Đã đẩy ${newItems.length} xét nghiệm vào Hàng đợi (Ca ${viewShift}).`,
+      `Đã đẩy ${newItems.length} xét nghiệm vào Hàng đợi (${SHIFT_INFO[viewShift].short}).`,
       "success"
+    );
+  };
+
+  /**
+   * Nghiệp vụ V2031: Xử lý khi Vạch chứng (C) = Âm tính (Que thử hỏng / không lên vạch C)
+   * - Cộng +1 vào cột suDungQC (QC / Hỏng) của Ca trực tương ứng trên BM.13
+   * - Reset Đọc chứng của bệnh nhân về "Dương tính" và làm mới đồng hồ ủ để chạy que thử mới
+   */
+  const handleReportInvalidKit = (item: QueueItem) => {
+    if (!auth) return;
+    if (isLockedByOtherUser) {
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
+      return;
+    }
+    if (isShiftClosed(item.ngayBC, item.caTruc) && !isAdmin) {
+      notify(
+        `Ca ${item.caTruc} đã chốt, không thể ghi nhận hao hụt que lỗi.`,
+        "error"
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `Xác nhận que thử [${item.tenXetNghiem}] của BN ${item.hoTenBN} bị lỗi Vạch chứng (C = Âm tính)?\n\nHệ thống sẽ:\n1. Tự động cộng +1 vào cột "Sử dụng QC/Hỏng" của Ca ${item.caTruc}.\n2. Giữ bệnh nhân lại Hàng đợi và đặt lại trạng thái để bạn ủ que thử mới.`
+      )
+    ) {
+      return;
+    }
+
+    const code = String(item.maTest || "")
+      .trim()
+      .toUpperCase();
+    if (isStockTestCode(code)) {
+      const key = `${item.ngayBC}_CA${item.caTruc}`;
+      const targetComp =
+        item.ngayBC === selectedDate
+          ? currentDayComputed
+          : item.ngayBC === prevDateStr
+          ? prevDayComputed
+          : computeDaySingle(
+              item.ngayBC,
+              testsConfig,
+              bm04Logs,
+              pendingQueue,
+              bm13Raw,
+              dirtyBm13,
+              null
+            );
+      const existingShiftCells = targetComp.shifts[item.caTruc] || {};
+      const nextCellsPayload: Record<
+        string,
+        { boiHoan: number; suDungQC: number }
+      > = {};
+
+      targetComp.tests.forEach((t) => {
+        if (!isStockTestCode(t.code)) return;
+        const cur = existingShiftCells[t.code] || {
+          boiHoan: 0,
+          suDungQC: 0,
+          suDung: 0,
+          tonCuoi: 0,
+        };
+        nextCellsPayload[t.code] = {
+          boiHoan: cur.boiHoan,
+          suDungQC: t.code === code ? cur.suDungQC + 1 : cur.suDungQC,
+        };
+      });
+
+      setDirtyBm13((prev) => ({
+        ...prev,
+        [key]: {
+          ...(prev[key] || {}),
+          cells: nextCellsPayload,
+        },
+      }));
+    }
+
+    const freshIso = getTrustedNow().toISOString();
+    setPendingQueue((prev) =>
+      prev.map((p) =>
+        p.id === item.id
+          ? { ...p, docChung: "Dương tính", timestamp: freshIso }
+          : p
+      )
+    );
+    setDrafts((prev) => ({
+      ...prev,
+      [item.id]: { docChung: "Dương tính", ketQua: "" },
+    }));
+    delete beepedTimerMarksRef.current[item.id];
+    setTimers((prev) => {
+      if (!prev[item.id]) return prev;
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
+
+    enqueueOutbox("reportInvalidKit", {
+      id: item.id,
+      ngayBC: item.ngayBC,
+      caTruc: item.caTruc,
+      maTest: code,
+      hoTenBN: item.hoTenBN,
+    });
+
+    notify(
+      `Đã cộng +1 que lỗi [${item.tenXetNghiem}] vào cột QC/Hỏng Ca ${item.caTruc}. Mời bạn ủ que thử mới cho BN ${item.hoTenBN}!`,
+      "info"
     );
   };
 
@@ -5344,10 +6015,44 @@ export function MainApp() {
     const finalDocChung =
       docChungOverride !== undefined ? docChungOverride : draft.docChung;
 
+    // Khóa bảo vệ chuyên môn ISO 15189: Chặn tuyệt đối lưu kết quả bệnh nhân khi Vạch chứng (C) Âm tính
+    if (finalDocChung === "Âm Tính") {
+      notify(
+        "Vạch chứng (C) đang là Âm tính (Que thử lỗi)! Vui lòng bấm nút 'Hủy que lỗi (+1 QC/Hỏng)' chứ không được trả kết quả bệnh nhân.",
+        "error"
+      );
+      return;
+    }
+
     const check = validateAndNormalizeMulti(item.maTest, rawKq);
     if (!check.ok) {
       notify(check.error, "error");
       return;
+    }
+
+    // Cảnh báo đọc kết quả Âm tính non khi đồng hồ ủ test vẫn còn thời gian (Smart Incubation Guard)
+    const activeTimer = timers[item.id];
+    if (activeTimer && activeTimer.durationMs > 0) {
+      const remainMs =
+        activeTimer.durationMs - (Date.now() - activeTimer.startAt);
+      const isNegativeResult =
+        !check.normalized.toLowerCase().includes("dương") &&
+        !check.normalized.includes("(D)");
+      if (remainMs > 15000 && isNegativeResult) {
+        if (
+          !window.confirm(
+            `⚠️ CẢNH BÁO THỜI GIAN Ủ TEST (ISO 15189):\n\nXét nghiệm [${
+              item.tenXetNghiem
+            }] của BN ${item.hoTenBN} vẫn còn ${formatCountdownMmSs(
+              remainMs
+            )} trên đồng hồ đếm ngược (${
+              activeTimer.presetMin
+            } phút).\n\nBạn có chắc chắn muốn trả kết quả ÂM TÍNH sớm ngay bây giờ không?`
+          )
+        ) {
+          return;
+        }
+      }
     }
 
     const completedRecord: QueueItem = {
@@ -5396,6 +6101,11 @@ export function MainApp() {
     if (isLockedByOtherUser) {
       throw new Error(
         `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`
+      );
+    }
+    if (nextDocChung === "Âm Tính") {
+      throw new Error(
+        "Chuẩn ISO 15189: Không được phép cập nhật Vạch chứng (C) thành Âm tính cho kết quả bệnh nhân!"
       );
     }
     const target = bm04Logs.find((x) => x.id === id);
@@ -5526,7 +6236,7 @@ export function MainApp() {
     );
   };
 
-  /* ==================== CÁC HÀM THAO TÁC TỒN KHO & BÀN GIAO BM.13 ==================== */
+  /* ==================== CÁC HÀM THAO TÁC TỒN KHO & BÀN GIAO BM.13 (CÓ DEBOUNCE) ==================== */
 
   const handleUpdateShiftCell = (
     shift: ShiftNumber,
@@ -5576,11 +6286,19 @@ export function MainApp() {
       },
     }));
 
-    enqueueOutbox("saveBM13Data", {
-      ngayBC: selectedDate,
-      caTruc: shift,
-      dataJson: JSON.stringify(nextCellsPayload),
-    });
+    // Debounce 600ms để gõ số nhiều chữ số mượt mà mà không gây bão RPC
+    if (bm13DebounceRef.current) {
+      window.clearTimeout(bm13DebounceRef.current);
+    }
+    const targetDateSnap = selectedDate;
+    const jsonSnap = JSON.stringify(nextCellsPayload);
+    bm13DebounceRef.current = window.setTimeout(() => {
+      enqueueOutbox("saveBM13Data", {
+        ngayBC: targetDateSnap,
+        caTruc: shift,
+        dataJson: jsonSnap,
+      });
+    }, 600);
   };
 
   const handleApplyBulkReplenish = (
@@ -5664,12 +6382,43 @@ export function MainApp() {
       },
     }));
 
-    enqueueOutbox("saveBM13Data", {
-      ngayBC: selectedDate,
-      caTruc: 0,
-      ghiChu: nextNote,
-      dataJson: JSON.stringify({ tonDau: nextTonDau }),
-    });
+    if (bm13DebounceRef.current) {
+      window.clearTimeout(bm13DebounceRef.current);
+    }
+    const targetDateSnap = selectedDate;
+    bm13DebounceRef.current = window.setTimeout(() => {
+      enqueueOutbox("saveBM13Data", {
+        ngayBC: targetDateSnap,
+        caTruc: 0,
+        ghiChu: nextNote,
+        dataJson: JSON.stringify({ tonDau: nextTonDau }),
+      });
+    }, 600);
+  };
+
+  /**
+   * Kiểm tra khóa chốt ca tuần tự (1 -> 2 -> 3 -> 4) trước khi mở Modal Chốt Ca
+   */
+  const handleRequestOpenClosingModal = (shift: ShiftNumber) => {
+    if (isLockedByOtherUser) {
+      notify(
+        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên.`,
+        "error"
+      );
+      return;
+    }
+    const seqBlock = getSequentialShiftBlockReason(
+      shift,
+      currentDayComputed,
+      isAdmin,
+      yesterdayCa4PendingBlock,
+      selectedDate === todayStr
+    );
+    if (seqBlock) {
+      notify(seqBlock, "error");
+      return;
+    }
+    setClosingShiftModal(shift);
   };
 
   const handleConfirmCloseShift = async (shift: ShiftNumber) => {
@@ -5681,6 +6430,18 @@ export function MainApp() {
       );
       return;
     }
+    const seqBlock = getSequentialShiftBlockReason(
+      shift,
+      currentDayComputed,
+      isAdmin,
+      yesterdayCa4PendingBlock,
+      selectedDate === todayStr
+    );
+    if (seqBlock) {
+      notify(seqBlock, "error");
+      return;
+    }
+
     const pendingOfThisShift = pendingQueue.filter(
       (p) => p.ngayBC === selectedDate && Number(p.caTruc) === Number(shift)
     ).length;
@@ -5691,6 +6452,11 @@ export function MainApp() {
         "error"
       );
       return;
+    }
+
+    if (bm13DebounceRef.current) {
+      window.clearTimeout(bm13DebounceRef.current);
+      bm13DebounceRef.current = null;
     }
 
     const shiftCellsPayload: Record<
@@ -5757,12 +6523,15 @@ export function MainApp() {
     }
 
     setClosingShiftModal(null);
+    if (typeof res.body.stickyShift4Date === "string") {
+      setStickyShift4Date(res.body.stickyShift4Date);
+    }
 
     if (res.body.handoverQr) {
       setQrNowMs(Date.now());
       setHandoverQrState(res.body.handoverQr as HandoverQrState);
       notify(
-        `Đã khởi tạo Mã QR bàn giao Ca ${shift} (PIN: ${res.body.handoverQr.qrPin}). Vui lòng dùng điện thoại quét mã để kiểm đếm tại tủ hóa chất!`,
+        `Đã khởi tạo Mã QR bàn giao Ca ${shift} (Mã PIN dự phòng: ${res.body.handoverQr.qrPin}).`,
         "info"
       );
     } else {
@@ -5801,6 +6570,9 @@ export function MainApp() {
       return;
     }
     setHandoverQrState(null);
+    if (typeof res.body.stickyShift4Date === "string") {
+      setStickyShift4Date(res.body.stickyShift4Date);
+    }
     await syncFromCloud(true, selectedDate);
     notify(
       `Đã hủy chốt và mở khóa lại Ca ${handoverQrState.shift} để bạn điều chỉnh số liệu.`,
@@ -5808,9 +6580,21 @@ export function MainApp() {
     );
   }, [auth, handoverQrState, apiUrl, selectedDate, notify, syncFromCloud]);
 
-  // Bộ đếm thời gian 1 giây & Polling 3.5 giây khi màn hình PC đang mở bảng QR chờ đối soát
+  // Kiểm tra xem tài khoản hiện tại trên máy có phải chính là Người giao ca của phiên QR đang mở hay không
+  const isCurrentUserSenderOfActiveQr = useMemo(() => {
+    if (!auth || !handoverQrState) return false;
+    return (
+      (Boolean(handoverQrState.senderId) &&
+        handoverQrState.senderId.trim().toLowerCase() ===
+          auth.user.id.trim().toLowerCase()) ||
+      handoverQrState.senderName.trim().toLowerCase() ===
+        auth.user.name.trim().toLowerCase()
+    );
+  }, [auth, handoverQrState]);
+
+  // Bộ đếm thời gian 1 giây & Polling 3.2 giây khi màn hình PC của Người giao đang mở bảng QR chờ đối soát
   useEffect(() => {
-    if (!auth || !handoverQrState) return;
+    if (!auth || !handoverQrState || !isCurrentUserSenderOfActiveQr) return;
     if (
       handoverQrState.status !== "WAITING_SCAN" &&
       handoverQrState.status !== "VERIFYING"
@@ -5838,7 +6622,10 @@ export function MainApp() {
       }
 
       if (remoteQr.status === "ACCEPTED") {
+        // Khi người nhận ký nhận xong trên điện thoại -> PC của Người giao ĐĂNG XUẤT 100% NGAY LẬP TỨC,
+        // tuyệt đối không bật bảng khóa in đè lên phiên của Người giao!
         setHandoverQrState(null);
+        setCompliancePrintState(null);
         setChecker(null);
         setAuth(null);
         notify(
@@ -5846,7 +6633,7 @@ export function MainApp() {
             remoteQr.verifierName || "Người nhận"
           }] đã ký nhận bàn giao Ca ${
             remoteQr.shift
-          } thành công! Màn hình PC đã tự động đăng xuất.`,
+          } thành công! Màn hình PC của người giao đã tự động đăng xuất.`,
           "success"
         );
         return;
@@ -5877,7 +6664,7 @@ export function MainApp() {
       }
 
       setHandoverQrState(remoteQr);
-    }, 3500);
+    }, 3200);
 
     return () => {
       window.clearInterval(secTimer);
@@ -5886,6 +6673,7 @@ export function MainApp() {
   }, [
     auth,
     handoverQrState,
+    isCurrentUserSenderOfActiveQr,
     apiUrl,
     selectedDate,
     notify,
@@ -5894,16 +6682,18 @@ export function MainApp() {
     syncFromCloud,
   ]);
 
-  const handleReceiveShiftHandover = async (
+  const handleAdminDirectReceiveShift = async (
     targetDate: string,
     shift: ShiftNumber
   ) => {
-    if (!auth) return;
-    if (isLockedByOtherUser) {
-      notify(
-        `Bạn đang ở chế độ Chỉ xem do [${activeSession?.mainUser}] đang giữ phiên. Bấm "Tiếp quản phiên" trước khi ký nhận ca.`,
-        "error"
-      );
+    if (!auth || !isAdmin) return;
+    if (
+      !window.confirm(
+        `[QUYỀN TỐI THƯỢNG ADMIN]\nXác nhận ký nhận trực tiếp Ca ${shift} ngày ${formatDateDisplay(
+          targetDate
+        )} mà không cần qua điện thoại?`
+      )
+    ) {
       return;
     }
     const res = await rpcCall(
@@ -5913,24 +6703,30 @@ export function MainApp() {
         ngayBC: targetDate,
         caTruc: shift,
         op: "receive",
+        adminDirectReceive: true,
+        allowAdminSelfReceive: true,
+        checklistVerified: true,
         sessionEpoch: sessionEpoch || undefined,
       },
       auth.token
     );
 
     if (!res.net || res.body.status !== "success") {
-      if (res.body.activeSession) setActiveSession(res.body.activeSession);
-      notify(
-        res.body.message || "Không thể ký nhận bàn giao ca. Vui lòng thử lại.",
-        "error"
-      );
+      notify(res.body.message || "Không thể ký nhận bàn giao ca.", "error");
       return;
     }
 
+    setHandoverQrState(null);
+    if (res.body.compliancePrint) {
+      setCompliancePrintState(res.body.compliancePrint as CompliancePrintState);
+    }
+    if (typeof res.body.stickyShift4Date === "string") {
+      setStickyShift4Date(res.body.stickyShift4Date);
+    }
     setAdminShiftOverride(null);
-    await syncFromCloud(true, selectedDate);
+    await syncFromCloud(true, targetDate);
     notify(
-      `Đã ký nhận bàn giao Ca ${shift} ngày ${formatDateDisplay(
+      `Admin đã ký nhận bàn giao Ca ${shift} ngày ${formatDateDisplay(
         targetDate
       )} thành công!`,
       "success"
@@ -5957,6 +6753,13 @@ export function MainApp() {
     if (!res.net || res.body.status !== "success") {
       notify(res.body.message || "Không thể mở khóa ca.", "error");
       return;
+    }
+    setHandoverQrState((res.body.handoverQr as HandoverQrState | null) || null);
+    setCompliancePrintState(
+      (res.body.compliancePrint as CompliancePrintState | null) || null
+    );
+    if (typeof res.body.stickyShift4Date === "string") {
+      setStickyShift4Date(res.body.stickyShift4Date);
     }
     await syncFromCloud(true, selectedDate);
     notify(`Đã mở khóa lại Ca ${shift}.`, "info");
@@ -5994,9 +6797,14 @@ export function MainApp() {
         }
       }
     }
-    if (auth && !isSessionHeldByOther) {
+    if (auth && !isSessionHeldByOther && !isReceiverInActiveHandoverFlow) {
       await rpcCall(apiUrl, "clearSession", {}, auth.token);
     }
+    clearPendingQrClaimStorage();
+    setHasPendingQrClaim(false);
+    setMobileQrSession(null);
+    setMobileAcceptedMustLogout(false);
+    setHandoverQrState(null);
     setChecker(null);
     setAuth(null);
   };
@@ -6045,75 +6853,120 @@ export function MainApp() {
     [outbox]
   );
 
-  /* ==================== ĐIỀU PHỐI QR MOBILE (TOKEN BRIDGE) & KHÓA IN CA 4 ==================== */
+  /* ==================== ĐIỀU PHỐI QR MOBILE, CỔNG CHẶN PIN & KHÓA IN CA 4 ==================== */
 
   const claimQrHandoverSession = useCallback(
-    async (qrToken: string, qrPin: string, passedToken?: string) => {
-      const tokenToUse = passedToken || (auth ? auth.token : "");
-      if (!tokenToUse) {
+    async (qrToken: string, qrPin: string) => {
+      if (!auth) {
         notify(
-          "Không tìm thấy kết nối xác thực. Vui lòng dùng Camera quét lại mã QR trên màn hình PC!",
+          "Vui lòng đăng nhập tài khoản của NGƯỜI NHẬN CA để mở Checklist đối soát!",
           "error"
         );
         return;
       }
+      if (claimingQrRef.current) return;
+      claimingQrRef.current = true;
       setMobileSubmitting(true);
+
       const res = await rpcCall(
         apiUrl,
         "shiftOp",
         { op: "claim_qr", qrToken, qrPin },
-        tokenToUse
+        auth.token
       );
+
+      claimingQrRef.current = false;
       setMobileSubmitting(false);
 
-      if (!res.net || res.body.status !== "success" || !res.body.handoverQr) {
+      if (!res.net) {
+        notify("Mất kết nối mạng khi mở Checklist. Vui lòng thử lại!", "error");
+        return;
+      }
+
+      if (res.body.code === "SELF_HANDOVER_FORBIDDEN") {
+        // Nếu phát hiện trình duyệt đang đăng nhập tài khoản của Người giao ca -> Giữ lại mã QR và đăng xuất ngay để Người nhận đăng nhập!
+        if (qrToken || qrPin) {
+          writePendingQrClaimStorage({
+            qrToken: qrToken || "",
+            qrPin: qrPin || "",
+            capturedAt: Date.now(),
+          });
+          setHasPendingQrClaim(true);
+        }
+        setChecker(null);
+        setAuth(null);
         notify(
           res.body.message ||
-            "Không thể mở phiên đối soát QR. Vui lòng kiểm tra lại mã trên PC!",
+            "Thiết bị đang đăng nhập tài khoản Người giao. Vui lòng đăng nhập bằng tài khoản của NGƯỜI NHẬN CA!",
           "error"
         );
         return;
       }
 
+      if (res.body.status !== "success" || !res.body.handoverQr) {
+        if (
+          res.body.code === "QR_NOT_FOUND" ||
+          res.body.code === "QR_EXPIRED" ||
+          res.body.code === "QR_CLOSED"
+        ) {
+          clearPendingQrClaimStorage();
+          setHasPendingQrClaim(false);
+          setHandoverQrState(null);
+        }
+        // Nếu link QR bị Zalo cắt hỏng hoặc hết hạn token, mở ngay Cổng Nhập Mã PIN 4 số dự phòng!
+        setShowManualPinModal(true);
+        notify(
+          res.body.message ||
+            "Rất tiếc bạn đã không sử dụng được QRcode, vui lòng nhập mã PIN 4 số dự phòng!",
+          "error"
+        );
+        return;
+      }
+
+      const qrData = res.body.handoverQr as HandoverQrState;
+
+      // Chỉ xóa thông tin QR tạm sau khi Server đã trả về handoverQr thành công 100%
+      clearPendingQrClaimStorage();
+      setHasPendingQrClaim(false);
       setShowManualPinModal(false);
       setMobileAcceptedMustLogout(false);
-      setMobileAuthToken(tokenToUse);
-      setMobileQrSession(res.body.handoverQr as HandoverQrState);
+      setMobileQrSession(qrData);
       notify(
-        `Đã mở Checklist kiểm đếm Ca ${res.body.handoverQr.shift}. Vui lòng đếm và tích đủ 100% các hàng test!`,
-        "info"
+        `Đã mở Checklist kiểm đếm Ca ${qrData.shift} (${formatDateDisplay(
+          qrData.date
+        )}). Vui lòng đếm và tích đủ 100%!`,
+        "success"
       );
     },
-    [auth, apiUrl, notify]
+    [auth, apiUrl, notify, setAuth, setChecker]
   );
 
+  // Tự động kích hoạt claimQrHandoverSession ngay khi Người nhận đăng nhập xong mà có mã QR đã quét
   useEffect(() => {
-    // 1. Tự động mở Checklist từ QR (Hỗ trợ cả Zalo / App thứ 3 chưa đăng nhập nhờ autoToken)
-    try {
-      const pendingRaw = window.sessionStorage.getItem(
-        "PENDING_QR_HANDOVER_CLAIM"
+    if (!auth || auth.mustChange || mobileQrSession || claimingQrRef.current)
+      return;
+    const savedClaim = readPendingQrClaimStorage();
+    if (savedClaim && (savedClaim.qrToken || savedClaim.qrPin)) {
+      claimQrHandoverSession(
+        String(savedClaim.qrToken || ""),
+        String(savedClaim.qrPin || "")
       );
-      if (pendingRaw) {
-        const parsed = JSON.parse(pendingRaw);
-        const tokenCandidate = String(
-          parsed?.autoToken || (auth ? auth.token : "")
-        );
-        if (parsed && (parsed.qrToken || parsed.qrPin) && tokenCandidate) {
-          window.sessionStorage.removeItem("PENDING_QR_HANDOVER_CLAIM");
-          claimQrHandoverSession(
-            String(parsed.qrToken || ""),
-            String(parsed.qrPin || ""),
-            tokenCandidate
-          );
-        }
-      }
-    } catch {}
+    }
+  }, [auth, mobileQrSession, claimQrHandoverSession]);
 
-    // 2. Tải trạng thái Khóa cứng bắt buộc in 2 biểu mẫu (Chỉ áp dụng khi chốt Ca 4)
-    if (!auth || auth.mustChange) return;
+  // Kiểm tra định kỳ trạng thái QR & Khóa cứng in ấn Ca 4 (chỉ chạy khi PC không phải đang mở bảng QR của Người giao)
+  useEffect(() => {
+    if (
+      !auth ||
+      auth.mustChange ||
+      mobileQrSession ||
+      isCurrentUserSenderOfActiveQr
+    )
+      return;
 
     let cancelled = false;
-    const fetchComplianceStatus = async () => {
+    const fetchHandoverAndComplianceStatus = async () => {
+      if (claimingQrRef.current) return;
       const res = await rpcCall(
         apiUrl,
         "shiftOp",
@@ -6121,21 +6974,50 @@ export function MainApp() {
         auth.token
       );
       if (cancelled || !res.net || res.body.status !== "success") return;
+
+      const remoteQr = (res.body.handoverQr as HandoverQrState | null) || null;
       const comp =
         (res.body.compliancePrint as CompliancePrintState | null) || null;
+      const stickyDate = String(res.body.stickyShift4Date || "");
+
+      setHandoverQrState(remoteQr);
       setCompliancePrintState(comp);
+      setStickyShift4Date(stickyDate);
     };
-    fetchComplianceStatus();
-    const timer = window.setInterval(fetchComplianceStatus, 12000);
+
+    fetchHandoverAndComplianceStatus();
+    const timer = window.setInterval(fetchHandoverAndComplianceStatus, 8000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [auth, apiUrl, claimQrHandoverSession]);
+  }, [auth, apiUrl, mobileQrSession, isCurrentUserSenderOfActiveQr]);
+
+  // CỔNG CHẶN PIN DỰ PHÒNG TỰ ĐỘNG (INTERCEPT GATE - ĐÃ VÁ LỖI CHỚP THÔNG BÁO 0.5S):
+  // Khi hệ thống đang có Ca trực chờ nhận bàn giao (WAITING_SCAN / VERIFYING) và người vừa đăng nhập
+  // KHÔNG phải là Người giao ca, đồng thời điện thoại không trong trạng thái đang submit gọi API claim_qr -> Bật Modal PIN!
+  const mustInterceptWithPinModal = useMemo(() => {
+    if (!auth || auth.mustChange || mobileQrSession || mobileSubmitting)
+      return false;
+    if (
+      handoverQrState &&
+      (handoverQrState.status === "WAITING_SCAN" ||
+        handoverQrState.status === "VERIFYING") &&
+      !isCurrentUserSenderOfActiveQr
+    ) {
+      return true;
+    }
+    return false;
+  }, [
+    auth,
+    mobileQrSession,
+    mobileSubmitting,
+    handoverQrState,
+    isCurrentUserSenderOfActiveQr,
+  ]);
 
   const handleMobileAcceptHandover = async (verifierName: string) => {
-    const tokenToUse = mobileAuthToken || (auth ? auth.token : "");
-    if (!mobileQrSession || !tokenToUse) return;
+    if (!mobileQrSession || !auth) return;
     setMobileSubmitting(true);
     const res = await rpcCall(
       apiUrl,
@@ -6147,19 +7029,20 @@ export function MainApp() {
         fromQrMobile: true,
         checklistVerified: true,
         overrideVerifierName: verifierName.trim(),
+        overrideVerifierId: auth.user.id,
       },
-      tokenToUse
+      auth.token
     );
     setMobileSubmitting(false);
 
     if (!res.net || res.body.status !== "success") {
-      notify(
-        res.body.message || "Không thể ký nhận bàn giao ca. Vui lòng thử lại!",
-        "error"
-      );
+      notify(res.body.message || "Không thể ký nhận bàn giao ca.", "error");
       return;
     }
 
+    // Khóa cứng màn hình điện thoại vào trạng thái BẮT BUỘC ĐĂNG XUẤT NGAY LẬP TỨC
+    clearPendingQrClaimStorage();
+    setHasPendingQrClaim(false);
     setMobileAcceptedMustLogout(true);
     notify(
       `Ký nhận bàn giao Ca ${mobileQrSession.shift} thành công! Vui lòng bấm Đăng xuất khỏi điện thoại.`,
@@ -6168,8 +7051,7 @@ export function MainApp() {
   };
 
   const handleMobileRejectHandover = async (reason: string) => {
-    const tokenToUse = mobileAuthToken || (auth ? auth.token : "");
-    if (!mobileQrSession || !tokenToUse) return;
+    if (!mobileQrSession || !auth) return;
     setMobileSubmitting(true);
     const res = await rpcCall(
       apiUrl,
@@ -6180,58 +7062,92 @@ export function MainApp() {
         op: "reject",
         rejectReason: reason,
       },
-      tokenToUse
+      auth.token
     );
     setMobileSubmitting(false);
 
     if (!res.net || res.body.status !== "success") {
-      notify(
-        res.body.message || "Không thể gửi yêu cầu từ chối bàn giao.",
-        "error"
-      );
+      notify(res.body.message || "Không thể gửi yêu cầu từ chối.", "error");
       return;
     }
 
     const rejectedShift = mobileQrSession.shift;
+
+    // ĐÃ VÁ: Xóa sạch trạng thái QR và ép đăng xuất ngay lập tức trên điện thoại,
+    // đưa nhân viên về thẳng màn hình Login sạch sẽ (không cho bay vào giao diện app nữa)
+    clearPendingQrClaimStorage();
+    setHasPendingQrClaim(false);
     setMobileQrSession(null);
     setMobileAcceptedMustLogout(false);
-    setMobileAuthToken("");
-    if (auth) await syncFromCloud(true, selectedDate);
+    setHandoverQrState(null);
+    setCompliancePrintState(null);
+    setChecker(null);
+    setAuth(null); // <--- Ép đăng xuất 100% tại đây!
+
     notify(
-      `Đã từ chối nhận bàn giao và tự động mở khóa Ca ${rejectedShift} để người giao điều chỉnh lại số liệu trên PC!`,
-      "info"
+      `Đã từ chối nhận bàn giao Ca ${rejectedShift} và mở khóa ca trực. Phiên trên điện thoại đã được đăng xuất an toàn!`,
+      "success"
     );
   };
 
   const handleMandatoryMobileLogout = async () => {
-    const tokenToUse = mobileAuthToken || (auth ? auth.token : "");
-    if (tokenToUse) {
-      await rpcCall(apiUrl, "clearSession", {}, tokenToUse);
-    }
+    clearPendingQrClaimStorage();
+    setHasPendingQrClaim(false);
     setMobileQrSession(null);
     setMobileAcceptedMustLogout(false);
-    setMobileAuthToken("");
+    setHandoverQrState(null);
+    setCompliancePrintState(null);
     setChecker(null);
     setAuth(null);
   };
 
+  /**
+   * Thực thi in bắt buộc 2 biểu mẫu (BM.04 & BM.13) khi chốt Ca 4:
+   * - Đảm bảo 100% tải đúng dữ liệu của ngày Ca 4 (compliancePrintState.date, VD: 06/11/2026) trước khi gọi window.print()
+   * - Sau khi hộp thoại máy in đóng lại, xác nhận đã in hoàn tất rồi mới mở khóa
+   */
   const handleTriggerCompliancePrint = async (form: "BM04" | "BM13") => {
     if (!auth || !compliancePrintState) return;
     setPrintingFormLock(form);
 
-    if (
-      compliancePrintState.date &&
-      compliancePrintState.date !== selectedDate
-    ) {
-      datePickedRef.current = compliancePrintState.date !== todayStr;
-      setSelectedDate(compliancePrintState.date);
+    const targetPrintDate = compliancePrintState.date || selectedDate;
+    if (isDateStr(targetPrintDate) && targetPrintDate !== selectedDate) {
+      datePickedRef.current = true;
+      setSelectedDate(targetPrintDate);
     }
+
+    // Đảm bảo dữ liệu của ngày Ca 4 đã được tải đầy đủ từ Cloud trước khi mở trang in
+    if (loadedCloudDateRef.current !== targetPrintDate) {
+      await syncFromCloud(true, targetPrintDate);
+    }
+
     setActiveTab(form === "BM04" ? "PRINT_BM04" : "PRINT_BM13");
 
     window.setTimeout(async () => {
       try {
         window.print();
       } catch {}
+
+      const formLabel =
+        form === "BM04"
+          ? `Sổ Kết Quả BM.04 (Trọn bộ 4 ca ngày ${formatDateDisplay(
+              targetPrintDate
+            )})`
+          : `Sổ Bàn Giao Hóa Chất BM.13 (Trọn bộ 4 ca ngày ${formatDateDisplay(
+              targetPrintDate
+            )})`;
+
+      const confirmed = window.confirm(
+        `Xác nhận bạn đã thực hiện lệnh in [${formLabel}] ra máy in thành công?`
+      );
+      if (!confirmed) {
+        setPrintingFormLock(null);
+        notify(
+          `Chưa xác nhận in ${form}. Vui lòng bấm in lại khi máy in đã sẵn sàng!`,
+          "info"
+        );
+        return;
+      }
 
       const res = await rpcCall(
         apiUrl,
@@ -6244,23 +7160,36 @@ export function MainApp() {
       if (res.net && res.body.status === "success") {
         const nextComp =
           (res.body.compliancePrint as CompliancePrintState | null) || null;
+        const nextSticky = String(res.body.stickyShift4Date || "");
         setCompliancePrintState(nextComp);
+        setStickyShift4Date(nextSticky);
+
         if (!nextComp || !nextComp.required) {
+          // Sau khi đã in xong cả 2 biểu mẫu của ngày hôm qua -> Tự động lật sang Ca 1 của ngày hôm nay!
+          datePickedRef.current = false;
+          const freshToday = businessDate();
+          setSelectedDate(freshToday);
+          setAdminShiftOverride(null);
           setActiveTab("WORK");
+          await syncFromCloud(true, freshToday);
           notify(
-            "Đã hoàn tất in đủ 2 biểu mẫu BM.04 & BM.13! Phiên làm việc mới đã được mở khóa hoàn toàn.",
+            `Đã hoàn tất in đủ 2 biểu mẫu BM.04 & BM.13 của ngày ${formatDateDisplay(
+              targetPrintDate
+            )}! Hệ thống đã chuyển sang Ca 1 ngày mới (${formatDateDisplay(
+              freshToday
+            )}).`,
             "success"
           );
         } else {
           notify(
             `Đã ghi nhận in ${
               form === "BM04" ? "Sổ BM.04" : "Sổ BM.13"
-            }. Vui lòng bấm in nốt biểu mẫu còn lại để mở khóa!`,
+            }. Vui lòng bấm in tiếp biểu mẫu còn lại để mở khóa phiên làm việc mới!`,
             "info"
           );
         }
       }
-    }, 400);
+    }, 650);
   };
 
   const fallbackMobileSnapshotRows: ShiftSnapshotRow[] = useMemo(() => {
@@ -6293,9 +7222,7 @@ export function MainApp() {
     });
     return rows;
   }, [mobileQrSession?.shift, viewShift, currentDayComputed]);
-
-  /* ==================== TẤM KHIÊN CÁCH LY ZALO & MOBILE QR ==================== */
-  // Đặt sau toàn bộ React Hooks để đảm bảo an toàn tuyệt đối 100%, chặn Zalo nhảy sang màn hình In ấn
+  /* ==================== TẤM KHIÊN CÁCH LY 1: MOBILE CHECKLIST ==================== */
   if (mobileQrSession) {
     return (
       <MobileHandoverChecklistModal
@@ -6308,21 +7235,38 @@ export function MainApp() {
         onAcceptHandover={handleMobileAcceptHandover}
         onRejectHandover={handleMobileRejectHandover}
         onMandatoryMobileLogout={handleMandatoryMobileLogout}
-        onCloseWithoutAction={() => setMobileQrSession(null)}
+        onCloseWithoutAction={handleMandatoryMobileLogout}
       />
     );
   }
 
-  /* ==================== RENDER MÀN HÌNH ĐĂNG NHẬP NẾU CHƯA AUTH ==================== */
-
+  /* ==================== TẤM KHIÊN CÁCH LY 2: MÀN HÌNH ĐĂNG NHẬP ==================== */
   if (!auth) {
     return (
       <LoginScreen
         apiUrl={apiUrl}
-        onSuccess={(nextAuth, initialSession) => {
+        hasPendingQr={hasPendingQrClaim}
+        onSuccess={(bundle) => {
+          const nextAuth = bundle.auth;
           setAuth(nextAuth);
+
+          // Nạp tức thì trạng thái QR, Khóa cứng in 2 biểu mẫu Ca 4 & Ngày Neo Ca 4 ngay từ giây 0.00
+          if (bundle.handoverQr !== undefined) {
+            setHandoverQrState(bundle.handoverQr || null);
+          }
+          if (bundle.compliancePrint !== undefined) {
+            setCompliancePrintState(bundle.compliancePrint || null);
+          }
+          if (bundle.stickyShift4Date) {
+            setStickyShift4Date(bundle.stickyShift4Date);
+            if (isDateStr(bundle.stickyShift4Date)) {
+              setSelectedDate(bundle.stickyShift4Date);
+            }
+          }
+
+          const initialSession = bundle.activeSession;
           if (initialSession !== undefined) {
-            setActiveSession(initialSession);
+            setActiveSession(initialSession || null);
             const ownerId = String(
               initialSession?.mainUserId || ""
             ).toLowerCase();
@@ -6331,7 +7275,17 @@ export function MainApp() {
               (ownerId
                 ? ownerId !== nextAuth.user.id.toLowerCase()
                 : initialSession!.mainUser !== nextAuth.user.name);
-            if (isOther && initialSession) {
+            const hasActiveQrHandover =
+              bundle.handoverQr &&
+              (bundle.handoverQr.status === "WAITING_SCAN" ||
+                bundle.handoverQr.status === "VERIFYING");
+
+            if (
+              isOther &&
+              initialSession &&
+              !hasPendingQrClaim &&
+              !hasActiveQrHandover
+            ) {
               if (nextAuth.user.role === "Admin") {
                 notify(
                   `Phiên đang được giữ bởi ${initialSession.mainUser} (Ca ${initialSession.shift}). Quyền Tối Thượng Admin đã kích hoạt!`,
@@ -6357,9 +7311,55 @@ export function MainApp() {
     );
   }
 
+  /* ==================== TẤM KHIÊN CÁCH LY 3: CỔNG CHẶN MÃ PIN DỰ PHÒNG ==================== */
+  // Đảm bảo 100%: Khi đang có ca chờ bàn giao và Người nhận tự đăng nhập vào điện thoại (không quét được QR),
+  // hệ thống chặn ngay ở cửa sổ nhập PIN dự phòng, tuyệt đối không cho bay thẳng vào giao diện chính!
+  if (mustInterceptWithPinModal) {
+    return (
+      <>
+        <div className="no-print fixed bottom-4 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-none">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`pointer-events-auto px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center gap-2.5 transition-all ${
+                t.type === "success"
+                  ? "bg-emerald-900/95 text-white border-emerald-400/40"
+                  : t.type === "error"
+                  ? "bg-rose-900/95 text-white border-rose-400/40"
+                  : "bg-slate-900/95 text-white border-slate-600"
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />
+              <span className="leading-snug">{t.message}</span>
+            </div>
+          ))}
+        </div>
+        <ManualPinClaimModal
+          open={true}
+          loading={mobileSubmitting}
+          interceptMode={true}
+          pendingQrInfo={handoverQrState}
+          currentUserName={auth.user.name}
+          onClose={() => {}}
+          onLogout={handleLogout}
+          onSubmitPin={(pin) => claimQrHandoverSession("", pin)}
+        />
+      </>
+    );
+  }
+
+  // Chỉ bật Khóa cứng bắt buộc in 2 biểu mẫu Ca 4 khi PC không còn ở màn hình chờ QR của Người giao
+  const isWaitingQrOnSenderPc =
+    isCurrentUserSenderOfActiveQr &&
+    (handoverQrState?.status === "WAITING_SCAN" ||
+      handoverQrState?.status === "VERIFYING");
+
   const isLockedByCompliancePrint = Boolean(
-    compliancePrintState?.required && Number(compliancePrintState?.shift) === 4
+    !isWaitingQrOnSenderPc &&
+      compliancePrintState?.required &&
+      Number(compliancePrintState?.shift) === 4
   );
+
   const activeShiftTheme = SHIFT_THEME[viewShift] || SHIFT_THEME[1];
   const isWorkDisabled =
     Boolean(handoverLockReason) ||
@@ -6370,13 +7370,13 @@ export function MainApp() {
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col justify-between">
       {/* CSS IN ẤN A4 NGANG CHUẨN ISO */}
       <style>{`
-        @media print {
-          @page { size: A4 landscape; margin: 8mm; }
-          body { background: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .no-print { display: none !important; }
-          .print-sheet { border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
-        }
-      `}</style>
+          @media print {
+            @page { size: A4 landscape; margin: 8mm; }
+            body { background: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .print-sheet { border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
+          }
+        `}</style>
 
       {/* TOAST THÔNG BÁO NỔI */}
       <div className="no-print fixed bottom-4 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-none">
@@ -6406,7 +7406,6 @@ export function MainApp() {
       {/* HEADER MASTER UI */}
       <header className="no-print bg-gradient-to-r from-slate-950 via-slate-900 to-sky-950 text-white shadow-lg border-b border-amber-400/30">
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          {/* Thương hiệu Khoa kèm Logo mới */}
           <div className="flex items-center gap-3">
             {!headerLogoErr ? (
               <img
@@ -6430,41 +7429,42 @@ export function MainApp() {
                 </span>
               </div>
               <p className="text-[11px] font-semibold text-sky-300">
-                Hệ thống Quản lý Test Nhanh Miễn Dịch (BM.04 & BM.13)
+                Hệ thống Quản lý Test Nhanh Miễn Dịch (BM.04 & BM.13 • V2031)
               </p>
             </div>
           </div>
 
-          {/* Cụm điều khiển Ngày, Ca trực (4 Màu riêng biệt), Trạng thái đồng bộ & Tài khoản */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-1.5">
               <input
                 type="date"
                 value={selectedDate}
+                disabled={isLockedByCompliancePrint}
                 max={isAdmin ? undefined : todayStr}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (isDateStr(val)) {
-                    datePickedRef.current = val !== todayStr;
+                    datePickedRef.current = val !== anchoredBusinessDate;
                     setSelectedDate(val);
                     setAdminShiftOverride(null);
                   }
                 }}
-                className="bg-transparent text-xs font-black text-white focus:outline-none cursor-pointer [color-scheme:dark]"
+                className="bg-transparent text-xs font-black text-white focus:outline-none cursor-pointer disabled:opacity-60 [color-scheme:dark]"
               />
-              {selectedDate !== todayStr && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    datePickedRef.current = false;
-                    setSelectedDate(todayStr);
-                    setAdminShiftOverride(null);
-                  }}
-                  className="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 text-[10px] font-black uppercase"
-                >
-                  Về hôm nay
-                </button>
-              )}
+              {selectedDate !== anchoredBusinessDate &&
+                !isLockedByCompliancePrint && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      datePickedRef.current = false;
+                      setSelectedDate(anchoredBusinessDate);
+                      setAdminShiftOverride(null);
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 text-[10px] font-black uppercase"
+                  >
+                    Về ca hiện tại
+                  </button>
+                )}
             </div>
 
             <div
@@ -6750,19 +7750,28 @@ export function MainApp() {
               <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
               <span>{handoverLockReason}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (yesterdayCa4PendingBlock && selectedDate === todayStr) {
-                  datePickedRef.current = true;
-                  setSelectedDate(yesterdayCa4PendingBlock.date);
-                }
-                setActiveTab("BM13");
-              }}
-              className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black uppercase flex items-center gap-1"
-            >
-              Sang Tab 2 Nhận Bàn Giao <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowManualPinModal(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase"
+              >
+                Nhập PIN 4 Số Nhận Ca
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (yesterdayCa4PendingBlock && selectedDate === todayStr) {
+                    datePickedRef.current = true;
+                    setSelectedDate(yesterdayCa4PendingBlock.date);
+                  }
+                  setActiveTab("BM13");
+                }}
+                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black uppercase flex items-center gap-1"
+              >
+                Sang Tab 2 <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -6842,7 +7851,7 @@ export function MainApp() {
                       </label>
                       <label
                         className="inline-flex items-center gap-1 cursor-pointer select-none text-[10px] font-black text-sky-700 hover:text-sky-800"
-                        title="Tích chọn để nhập số Tuổi thay vì Năm sinh (không tự động quy đổi)"
+                        title="Tích chọn để nhập số Tuổi (Sẽ in ra 35T trên sổ BM.04 để phân biệt với Năm sinh)"
                       >
                         <input
                           type="checkbox"
@@ -6964,8 +7973,8 @@ export function MainApp() {
                     2. Chờ Đọc Kết Quả ({visiblePending.length})
                   </h2>
                   <span className="text-[11px] font-bold text-slate-500">
-                    Nhấn ⏱ để hẹn 10&apos; / 15&apos; / 20&apos; (Báo 3 tiếng
-                    Tít khi hết giờ)
+                    Nhấn ⏱ để hẹn 10&apos; / 15&apos; / 20&apos; (Báo chuông lớn
+                    khi hết giờ)
                   </span>
                 </div>
 
@@ -6984,6 +7993,7 @@ export function MainApp() {
                       const itemShiftTheme =
                         SHIFT_THEME[item.caTruc] || SHIFT_THEME[1];
                       const isFromPastDate = item.ngayBC !== selectedDate;
+                      const isControlInvalid = draft.docChung === "Âm Tính";
 
                       const tInfo = timers[item.id];
                       let remainMs = 0;
@@ -7014,10 +8024,10 @@ export function MainApp() {
                           : "bg-slate-50/70 border border-slate-200";
 
                       const rawBirthOrAge = item.namSinhNam || item.namSinhNu;
-                      const isAgeValue =
-                        item.isAgeMode ||
-                        (Number(rawBirthOrAge) > 0 &&
-                          Number(rawBirthOrAge) <= 130);
+                      const birthDisplay = formatBirthOrAgeDisplay(
+                        rawBirthOrAge,
+                        item.isAgeMode
+                      );
 
                       return (
                         <div
@@ -7049,9 +8059,9 @@ export function MainApp() {
                                 <span className="font-bold text-slate-900">
                                   {item.barcode}
                                 </span>{" "}
-                                • {isAgeValue ? "Tuổi" : "Năm sinh"}:{" "}
+                                • {birthDisplay.isAge ? "Tuổi" : "Năm sinh"}:{" "}
                                 <span className="font-bold text-slate-800">
-                                  {rawBirthOrAge} (
+                                  {birthDisplay.text} (
                                   {item.namSinhNam ? "Nam" : "Nữ"})
                                 </span>{" "}
                                 • TH: {item.nguoiThucHien}
@@ -7191,117 +8201,98 @@ export function MainApp() {
                             </div>
                           )}
 
-                          {isMulti ? (
-                            <div className="space-y-2 pt-1">
-                              <div className="flex items-center justify-between bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl">
-                                <span className="text-[11px] font-black uppercase tracking-wider text-indigo-900">
-                                  Đọc chứng (C):
-                                </span>
-                                <div className="flex gap-1.5">
-                                  {(
-                                    ["Dương tính", "Âm Tính"] as DocChungValue[]
-                                  ).map((dc) => {
-                                    const active = draft.docChung === dc;
-                                    const activeCls =
-                                      dc === "Dương tính"
-                                        ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200"
-                                        : "bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200";
-                                    return (
-                                      <button
-                                        key={dc}
-                                        type="button"
-                                        disabled={isLockedByOtherUser}
-                                        onClick={() =>
-                                          setDrafts((prev) => ({
-                                            ...prev,
-                                            [item.id]: {
-                                              ...draft,
-                                              docChung: dc,
-                                            },
-                                          }))
-                                        }
-                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition disabled:opacity-50 ${
-                                          active
-                                            ? activeCls
-                                            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
-                                        }`}
-                                      >
-                                        {dc === "Dương tính"
-                                          ? "● Dương tính"
-                                          : "○ Âm tính"}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                          {/* Thanh chọn Vạch chứng (Control C) kèm Khóa bảo vệ ISO 15189 */}
+                          <div className="space-y-2 pt-2 border-t border-slate-200/70">
+                            <div className="flex items-center justify-between bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl">
+                              <span className="text-[11px] font-black uppercase tracking-wider text-indigo-900">
+                                Đọc chứng (C):
+                              </span>
+                              <div className="flex gap-1.5">
+                                {(
+                                  ["Dương tính", "Âm Tính"] as DocChungValue[]
+                                ).map((dc) => {
+                                  const active = draft.docChung === dc;
+                                  const activeCls =
+                                    dc === "Dương tính"
+                                      ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200"
+                                      : "bg-rose-700 text-white border-rose-700 shadow-sm ring-2 ring-rose-200";
+                                  return (
+                                    <button
+                                      key={dc}
+                                      type="button"
+                                      disabled={isLockedByOtherUser}
+                                      onClick={() =>
+                                        setDrafts((prev) => ({
+                                          ...prev,
+                                          [item.id]: {
+                                            ...draft,
+                                            docChung: dc,
+                                          },
+                                        }))
+                                      }
+                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition disabled:opacity-50 ${
+                                        active
+                                          ? activeCls
+                                          : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
+                                      }`}
+                                    >
+                                      {dc === "Dương tính"
+                                        ? "● Dương tính (Hợp lệ)"
+                                        : "○ Âm tính (Que lỗi)"}
+                                    </button>
+                                  );
+                                })}
                               </div>
-                              <MultiPanelResultInput
-                                maTest={item.maTest}
-                                value={draft.ketQua}
-                                disabled={isLockedByOtherUser}
-                                onChange={(nextVal) =>
-                                  setDrafts((prev) => ({
-                                    ...prev,
-                                    [item.id]: { ...draft, ketQua: nextVal },
-                                  }))
-                                }
-                                onEnterSubmit={() =>
-                                  handleSaveResultFromQueue(item)
-                                }
-                                compact
-                              />
-                              <button
-                                type="button"
-                                disabled={isLockedByOtherUser}
-                                onClick={() => handleSaveResultFromQueue(item)}
-                                className="w-full py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm"
-                              >
-                                <Check className="w-4 h-4" /> Lưu kết quả{" "}
-                                {item.tenXetNghiem}
-                              </button>
                             </div>
-                          ) : (
-                            <div className="space-y-2 pt-2 border-t border-slate-200/70">
-                              <div className="flex items-center justify-between bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl">
-                                <span className="text-[11px] font-black uppercase tracking-wider text-indigo-900">
-                                  Đọc chứng (C):
-                                </span>
-                                <div className="flex gap-1.5">
-                                  {(
-                                    ["Dương tính", "Âm Tính"] as DocChungValue[]
-                                  ).map((dc) => {
-                                    const active = draft.docChung === dc;
-                                    const activeCls =
-                                      dc === "Dương tính"
-                                        ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-200"
-                                        : "bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-200";
-                                    return (
-                                      <button
-                                        key={dc}
-                                        type="button"
-                                        disabled={isLockedByOtherUser}
-                                        onClick={() =>
-                                          setDrafts((prev) => ({
-                                            ...prev,
-                                            [item.id]: {
-                                              ...draft,
-                                              docChung: dc,
-                                            },
-                                          }))
-                                        }
-                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition disabled:opacity-50 ${
-                                          active
-                                            ? activeCls
-                                            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
-                                        }`}
-                                      >
-                                        {dc === "Dương tính"
-                                          ? "● Dương tính"
-                                          : "○ Âm tính"}
-                                      </button>
-                                    );
-                                  })}
+
+                            {isControlInvalid ? (
+                              <div className="p-3 rounded-xl bg-rose-50 border-2 border-rose-300 space-y-2 text-center">
+                                <div className="text-[11px] font-bold text-rose-900">
+                                  ⚠️ Vạch chứng (C) Âm tính: Que thử không hợp
+                                  lệ (Invalid Test). Theo chuẩn ISO 15189, hệ
+                                  thống đã khóa nút trả kết quả bệnh nhân trên
+                                  que này.
                                 </div>
+                                <button
+                                  type="button"
+                                  disabled={isLockedByOtherUser}
+                                  onClick={() => handleReportInvalidKit(item)}
+                                  className="w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider shadow-md transition"
+                                >
+                                  ♻️ Hủy Que Lỗi (+1 Vào Cột QC/Hỏng) & Làm Lại
+                                  Que Mới
+                                </button>
                               </div>
+                            ) : isMulti ? (
+                              <>
+                                <MultiPanelResultInput
+                                  maTest={item.maTest}
+                                  value={draft.ketQua}
+                                  disabled={isLockedByOtherUser}
+                                  onChange={(nextVal) =>
+                                    setDrafts((prev) => ({
+                                      ...prev,
+                                      [item.id]: { ...draft, ketQua: nextVal },
+                                    }))
+                                  }
+                                  onEnterSubmit={() =>
+                                    handleSaveResultFromQueue(item)
+                                  }
+                                  compact
+                                />
+                                <button
+                                  type="button"
+                                  disabled={isLockedByOtherUser}
+                                  onClick={() =>
+                                    handleSaveResultFromQueue(item)
+                                  }
+                                  className="w-full py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm"
+                                >
+                                  <Check className="w-4 h-4" /> Lưu kết quả{" "}
+                                  {item.tenXetNghiem}
+                                </button>
+                              </>
+                            ) : (
                               <div className="grid grid-cols-2 gap-2">
                                 <button
                                   type="button"
@@ -7327,8 +8318,8 @@ export function MainApp() {
                                   DƯƠNG TÍNH (LƯU)
                                 </button>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -7340,7 +8331,7 @@ export function MainApp() {
               <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                   <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-600">
-                    NHẬT KÝ BM.04 HÔM NAY
+                    NHẬT KÝ BM.04 ({formatDateDisplay(selectedDate)})
                   </h2>
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
@@ -7393,6 +8384,10 @@ export function MainApp() {
                         displayKq.toLowerCase().includes("dương") ||
                         displayKq.includes("(D)");
                       const canModify = canUserModifyRecord(r);
+                      const birthOrAge = formatBirthOrAgeDisplay(
+                        r.namSinhNam || r.namSinhNu,
+                        r.isAgeMode
+                      );
 
                       return (
                         <div
@@ -7412,6 +8407,10 @@ export function MainApp() {
                                 </span>
                                 <span className="text-sm font-black text-slate-900 uppercase">
                                   {r.hoTenBN}
+                                </span>
+                                <span className="text-xs font-bold text-slate-500">
+                                  ({birthOrAge.text} •{" "}
+                                  {r.namSinhNam ? "Nam" : "Nữ"})
                                 </span>
                               </div>
 
@@ -7517,7 +8516,7 @@ export function MainApp() {
                   <button
                     type="button"
                     disabled={isLockedByOtherUser}
-                    onClick={() => setClosingShiftModal(viewShift)}
+                    onClick={() => handleRequestOpenClosingModal(viewShift)}
                     className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-[11px] font-black"
                   >
                     Chốt Ca {viewShift}
@@ -7607,6 +8606,15 @@ export function MainApp() {
                   (p) => p.ngayBC === selectedDate && Number(p.caTruc) === ca
                 ).length;
 
+                const seqLockReason = getSequentialShiftBlockReason(
+                  ca,
+                  currentDayComputed,
+                  isAdmin,
+                  yesterdayCa4PendingBlock,
+                  selectedDate === todayStr
+                );
+                const isSeqLockedForUser = Boolean(seqLockReason) && !isAdmin;
+
                 return (
                   <div
                     key={ca}
@@ -7662,7 +8670,7 @@ export function MainApp() {
                         <>
                           <button
                             type="button"
-                            disabled={isLockedByOtherUser}
+                            disabled={isLockedByOtherUser || isSeqLockedForUser}
                             onClick={() => setReplenishShiftModal(ca)}
                             className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-700 border border-emerald-200 text-xs font-black"
                           >
@@ -7671,26 +8679,44 @@ export function MainApp() {
                           <button
                             type="button"
                             disabled={isLockedByOtherUser}
-                            onClick={() => setClosingShiftModal(ca)}
-                            className="flex-1 py-1.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-black uppercase"
+                            onClick={() => handleRequestOpenClosingModal(ca)}
+                            title={seqLockReason || `Chốt bàn giao Ca ${ca}`}
+                            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black uppercase transition ${
+                              isSeqLockedForUser
+                                ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                                : "bg-sky-600 hover:bg-sky-500 text-white"
+                            }`}
                           >
-                            Chốt Ca {ca}{" "}
-                            {pendingCnt > 0 ? `(${pendingCnt} chờ)` : ""}
+                            {isSeqLockedForUser
+                              ? `🔒 Chờ xong Ca ${ca - 1}`
+                              : `Chốt Ca ${ca}${
+                                  pendingCnt > 0 ? ` (${pendingCnt} chờ)` : ""
+                                }`}
                           </button>
                         </>
                       )}
 
                       {m.trangThai === "PENDING_RECEIVE" && (
-                        <button
-                          type="button"
-                          disabled={isLockedByOtherUser}
-                          onClick={() =>
-                            handleReceiveShiftHandover(selectedDate, ca)
-                          }
-                          className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-black uppercase shadow-sm"
-                        >
-                          ✍️ Ký Nhận Bàn Giao Ca {ca}
-                        </button>
+                        <div className="w-full space-y-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setShowManualPinModal(true)}
+                            className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase shadow-sm"
+                          >
+                            📲 Nhập PIN 4 Số Mở Checklist Nhận Ca {ca}
+                          </button>
+                          {isAdmin && !isLockedByOtherUser && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleAdminDirectReceiveShift(selectedDate, ca)
+                              }
+                              className="w-full py-1.5 px-2.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-900 text-[11px] font-black uppercase"
+                            >
+                              ⚡ [Admin] Ký Nhận Đặc Cách Ca {ca}
+                            </button>
+                          )}
+                        </div>
                       )}
 
                       {m.trangThai !== "OPEN" &&
@@ -7719,8 +8745,9 @@ export function MainApp() {
                     {formatDateDisplay(selectedDate)}
                   </h3>
                   <p className="text-xs font-semibold text-slate-500">
-                    Cột &quot;Sử dụng&quot; tự động đếm từ BM.04 + Hàng đợi theo
-                    đúng từng Ca 1, 2, 3, 4.
+                    Cột &quot;Sử dụng&quot; tự động đếm từ BM.04 + Hàng đợi (Khử
+                    trùng ID 100%). Chốt ca tuần tự từ Ca 1 → Ca 2 → Ca 3 → Ca
+                    4.
                   </p>
                 </div>
                 <div className="w-full sm:w-96">
@@ -7769,7 +8796,7 @@ export function MainApp() {
                           +Bù
                         </th>
                         <th className="py-1.5 px-1.5 text-center text-purple-700">
-                          -QC
+                          -QC/Hỏng
                         </th>
                         <th className="py-1.5 px-1.5 text-center text-rose-600">
                           -Dùng
@@ -7888,20 +8915,21 @@ export function MainApp() {
           </div>
         )}
 
-        {/* ==================== TAB 3: IN SỔ BM.04 ==================== */}
+        {/* ==================== TAB 3: IN SỔ BM.04 (TỰ ĐỘNG NEO ĐÚNG NGÀY CA 4) ==================== */}
         {activeTab === "PRINT_BM04" && (
           <PrintBm04
-            selectedDate={selectedDate}
+            selectedDate={effectivePrintDate}
             logs={bm04Logs}
             testsConfig={testsConfig}
+            forceAllFilters={isLockedByCompliancePrint}
           />
         )}
 
-        {/* ==================== TAB 4: IN SỔ BM.13 ==================== */}
+        {/* ==================== TAB 4: IN SỔ BM.13 (TỰ ĐỘNG NEO ĐÚNG NGÀY CA 4) ==================== */}
         {activeTab === "PRINT_BM13" && (
           <PrintBm13
-            selectedDate={selectedDate}
-            computed={currentDayComputed}
+            selectedDate={effectivePrintDate}
+            computed={effectivePrintDayComputed}
           />
         )}
 
@@ -8007,12 +9035,10 @@ export function MainApp() {
         />
       )}
 
-      {(handoverQrState?.status === "WAITING_SCAN" ||
-        handoverQrState?.status === "VERIFYING") && (
+      {isWaitingQrOnSenderPc && (
         <PcHandoverQrModal
           qrState={handoverQrState}
           nowMs={qrNowMs}
-          authToken={auth.token}
           cancelLoading={cancelQrLoading}
           onCancelAndUnlock={handleCancelQrFromPc}
         />
@@ -8021,16 +9047,22 @@ export function MainApp() {
       <ManualPinClaimModal
         open={showManualPinModal}
         loading={mobileSubmitting}
+        interceptMode={false}
+        pendingQrInfo={handoverQrState}
+        currentUserName={auth.user.name}
         onClose={() => setShowManualPinModal(false)}
-        onSubmitPin={(pin) => claimQrHandoverSession("", pin, auth.token)}
+        onLogout={handleLogout}
+        onSubmitPin={(pin) => claimQrHandoverSession("", pin)}
       />
 
-      <CompliancePrintLockModal
-        state={compliancePrintState}
-        activeTab={activeTab}
-        printingForm={printingFormLock}
-        onTriggerPrintForm={handleTriggerCompliancePrint}
-      />
+      {!isWaitingQrOnSenderPc && (
+        <CompliancePrintLockModal
+          state={compliancePrintState}
+          activeTab={activeTab}
+          printingForm={printingFormLock}
+          onTriggerPrintForm={handleTriggerCompliancePrint}
+        />
+      )}
     </div>
   );
 }
