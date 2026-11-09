@@ -46,7 +46,7 @@ import {
 /* ============================== CẤU HÌNH KẾT NỐI ============================== */
 
 const DEFAULT_API_URL =
-  "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec";
+  "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/execc";
 
 const STORAGE_KEYS = Object.freeze({
   API_URL: "MD_API_URL_V2",
@@ -3660,65 +3660,68 @@ export interface ToastNotice {
 }
 
 /**
- * Âm báo động Y tế công suất cực đại (High-Gain Penetrating Alarm):
- * Tối ưu hóa biên độ âm thanh và tần số sắc bén để cắt ngang tiếng ồn máy ly tâm/xét nghiệm.
+ * Âm báo động Y tế công suất cực đại (High-Gain YouTube-Level Siren):
+ * Đóng gói dữ liệu WAV PCM 16-bit kịch trần biên độ (0dB) phát qua thẻ audio chuẩn HTML5,
+ * giúp loa ngoài 5W phát ra âm thanh to rõ tối đa, không bị nén hay bóp nghẹt.
  */
 export function playTripleBeepAlert() {
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    const sampleRate = 22050;
+    const durationSec = 1.6;
+    const numSamples = Math.floor(sampleRate * durationSec);
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
 
-    // Kích hoạt bộ khuếch đại nén tối đa (Max Compression & Gain) để âm thanh đạt độ lớn sắc nét nhất
-    const compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.setValueAtTime(-12, ctx.currentTime);
-    compressor.knee.setValueAtTime(0, ctx.currentTime);
-    compressor.ratio.setValueAtTime(20, ctx.currentTime);
-    compressor.attack.setValueAtTime(0, ctx.currentTime);
-    compressor.release.setValueAtTime(0.2, ctx.currentTime);
-    compressor.connect(ctx.destination);
+    function writeString(view: DataView, offset: number, str: string) {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    }
 
-    const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(2.0, ctx.currentTime); // Khuếch đại biên độ x2 lần
-    masterGain.connect(compressor);
+    writeString(view, 0, "RIFF");
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeString(view, 8, "WAVE");
+    writeString(view, 12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // Mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true); // 16-bit
+    writeString(view, 36, "data");
+    view.setUint32(40, numSamples * 2, true);
 
-    // 3 hồi bíp dồn dập (Mỗi hồi 3 tiếng) đặc trưng của thiết bị y tế cấp cứu
-    const beepOffsets = [0, 0.15, 0.3, 0.7, 0.85, 1.0, 1.4, 1.55, 1.7];
+    // Tạo sóng âm đa tần số kép (780Hz + 1040Hz) với biên độ cực đại 32767 (0dB Full-Scale)
+    const f1 = 780;
+    const f2 = 1040;
+    let offset = 44;
 
-    beepOffsets.forEach((offsetSec) => {
-      const startTime = ctx.currentTime + offsetSec;
-      const stopTime = startTime + 0.12;
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      // Chia thành 3 hồi bíp dồn dập
+      let envelope = 0;
+      if (t >= 0.0 && t <= 0.35) envelope = 1.0;
+      else if (t >= 0.5 && t <= 0.85) envelope = 1.0;
+      else if (t >= 1.0 && t <= 1.35) envelope = 1.0;
 
-      const osc1 = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
-      const noteGain = ctx.createGain();
+      const sampleVal =
+        Math.sin(2 * Math.PI * f1 * t) * 0.6 +
+        Math.sin(2 * Math.PI * f2 * t) * 0.4;
+      const pcm16 = Math.max(
+        -32768,
+        Math.min(32767, Math.floor(sampleVal * envelope * 32767))
+      );
+      view.setInt16(offset, pcm16, true);
+      offset += 2;
+    }
 
-      osc1.type = "square";
-      osc2.type = "sawtooth";
-      osc1.frequency.setValueAtTime(1046.5, startTime); // Nốt Do cao (C6) - cực kỳ chói tai, dễ nhận biết
-      osc2.frequency.setValueAtTime(2093.0, startTime); // Nốt Do cao hơn (C7) - tạo độ ngân sắc bén
-
-      noteGain.gain.setValueAtTime(0.01, startTime);
-      noteGain.gain.linearRampToValueAtTime(1.0, startTime + 0.01);
-      noteGain.gain.setValueAtTime(1.0, startTime + 0.09);
-      noteGain.gain.linearRampToValueAtTime(0.001, stopTime);
-
-      osc1.connect(noteGain);
-      osc2.connect(noteGain);
-      noteGain.connect(masterGain);
-
-      osc1.start(startTime);
-      osc2.start(startTime);
-      osc1.stop(stopTime);
-      osc2.stop(stopTime);
-    });
-
-    window.setTimeout(() => {
-      try {
-        ctx.close();
-      } catch {}
-    }, 2500);
-  } catch {}
+    const blob = new Blob([buffer], { type: "audio/wav" });
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    audio.volume = 1.0; // Mở tối đa 100% âm lượng hệ thống
+    audio.play().catch(() => {});
+  } catch (e) {}
 }
 
 interface PcHandoverQrModalProps {
@@ -5875,12 +5878,15 @@ export function MainApp() {
     );
   };
 
-  /**
-   * Nghiệp vụ V2031: Xử lý khi Vạch chứng (C) = Âm tính (Que thử hỏng / không lên vạch C)
-   * - Cộng +1 vào cột suDungQC (QC / Hỏng) của Ca trực tương ứng trên BM.13
-   * - Reset Đọc chứng của bệnh nhân về "Dương tính" và làm mới đồng hồ ủ để chạy que thử mới
-   */
-  const handleReportInvalidKit = (item: QueueItem) => {
+  // Tự động lọc sạch các bản ghi "bóng ma" (docChung === "Âm Tính") từng bị kẹt trong bm04Logs trên trình duyệt
+  useEffect(() => {
+    setBm04Logs((prev) => prev.filter((x) => x.docChung !== "Âm Tính"));
+  }, [setBm04Logs]);
+
+  const handleReportInvalidKit = (
+    item: QueueItem,
+    actionType: "RETRY" | "DISCARD" = "RETRY"
+  ) => {
     if (!auth) return;
     if (isLockedByOtherUser) {
       notify(
@@ -5896,17 +5902,89 @@ export function MainApp() {
       );
       return;
     }
+
+    const code = String(item.maTest || "")
+      .trim()
+      .toUpperCase();
+
+    if (actionType === "DISCARD") {
+      if (
+        !window.confirm(
+          `Xác nhận hủy xét nghiệm [${item.tenXetNghiem}] của BN ${item.hoTenBN}? Hệ thống sẽ cộng +1 vào cột QC/Hỏng trên BM.13 và xóa khỏi hàng đợi.`
+        )
+      ) {
+        return;
+      }
+      if (isStockTestCode(code)) {
+        const key = `${item.ngayBC}_CA${item.caTruc}`;
+        const targetComp =
+          item.ngayBC === selectedDate
+            ? currentDayComputed
+            : item.ngayBC === prevDateStr
+            ? prevDayComputed
+            : computeDaySingle(
+                item.ngayBC,
+                testsConfig,
+                bm04Logs,
+                pendingQueue,
+                bm13Raw,
+                dirtyBm13,
+                null
+              );
+        const existingShiftCells = targetComp.shifts[item.caTruc] || {};
+        const nextCellsPayload: Record<
+          string,
+          { boiHoan: number; suDungQC: number }
+        > = {};
+        targetComp.tests.forEach((t) => {
+          if (!isStockTestCode(t.code)) return;
+          const cur = existingShiftCells[t.code] || {
+            boiHoan: 0,
+            suDungQC: 0,
+            suDung: 0,
+            tonCuoi: 0,
+          };
+          nextCellsPayload[t.code] = {
+            boiHoan: cur.boiHoan,
+            suDungQC: t.code === code ? cur.suDungQC + 1 : cur.suDungQC,
+          };
+        });
+        setDirtyBm13((prev) => ({
+          ...prev,
+          [key]: { ...(prev[key] || {}), cells: nextCellsPayload },
+        }));
+        enqueueOutbox("saveBM13Data", {
+          ngayBC: item.ngayBC,
+          caTruc: item.caTruc,
+          dataJson: JSON.stringify(nextCellsPayload),
+        });
+      }
+      setPendingQueue((prev) => prev.filter((p) => p.id !== item.id));
+      delete beepedTimerMarksRef.current[item.id];
+      setTimers((prev) => {
+        if (!prev[item.id]) return prev;
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      enqueueOutbox("deletePending", { id: item.id });
+      notify(
+        `Đã ghi nhận +1 que lỗi [${item.tenXetNghiem}] vào QC/Hỏng và xóa khỏi hàng đợi.`,
+        "info"
+      );
+      return;
+    }
+
+    // ĐÃ VÁ: Khi chọn Ủ lại que mới -> Tự động cộng +1 vào QC/Hỏng ngay lập tức trên BM.13,
+    // đồng thời đặt cờ isRetry = true để que thứ 2 sau khi chạy xong chỉ tính 1 test sử dụng duy nhất!
     if (
       !window.confirm(
-        `Xác nhận que thử [${item.tenXetNghiem}] của BN ${item.hoTenBN} bị lỗi Vạch chứng (C = Âm tính)?\n\nHệ thống sẽ:\n1. Tự động cộng +1 vào cột "Sử dụng QC/Hỏng" của Ca ${item.caTruc}.\n2. Giữ bệnh nhân lại Hàng đợi và đặt lại trạng thái để bạn ủ que thử mới.`
+        `Xác nhận que thử [${item.tenXetNghiem}] của BN ${item.hoTenBN} bị hỏng Vạch C?\n\nHệ thống sẽ:\n1. Cộng +1 vào cột QC/Hỏng trên BM.13 ngay lập tức.\n2. Đặt lại thời gian ủ để bạn chạy que mới trên cùng lượt tiếp nhận này.`
       )
     ) {
       return;
     }
 
-    const code = String(item.maTest || "")
-      .trim()
-      .toUpperCase();
     if (isStockTestCode(code)) {
       const key = `${item.ngayBC}_CA${item.caTruc}`;
       const targetComp =
@@ -5928,7 +6006,6 @@ export function MainApp() {
         string,
         { boiHoan: number; suDungQC: number }
       > = {};
-
       targetComp.tests.forEach((t) => {
         if (!isStockTestCode(t.code)) return;
         const cur = existingShiftCells[t.code] || {
@@ -5942,21 +6019,27 @@ export function MainApp() {
           suDungQC: t.code === code ? cur.suDungQC + 1 : cur.suDungQC,
         };
       });
-
       setDirtyBm13((prev) => ({
         ...prev,
-        [key]: {
-          ...(prev[key] || {}),
-          cells: nextCellsPayload,
-        },
+        [key]: { ...(prev[key] || {}), cells: nextCellsPayload },
       }));
+      enqueueOutbox("saveBM13Data", {
+        ngayBC: item.ngayBC,
+        caTruc: item.caTruc,
+        dataJson: JSON.stringify(nextCellsPayload),
+      });
     }
 
     const freshIso = getTrustedNow().toISOString();
     setPendingQueue((prev) =>
       prev.map((p) =>
         p.id === item.id
-          ? { ...p, docChung: "Dương tính", timestamp: freshIso }
+          ? ({
+              ...p,
+              docChung: "Dương tính",
+              timestamp: freshIso,
+              isRetry: true,
+            } as any)
           : p
       )
     );
@@ -5972,17 +6055,9 @@ export function MainApp() {
       return next;
     });
 
-    enqueueOutbox("reportInvalidKit", {
-      id: item.id,
-      ngayBC: item.ngayBC,
-      caTruc: item.caTruc,
-      maTest: code,
-      hoTenBN: item.hoTenBN,
-    });
-
     notify(
-      `Đã cộng +1 que lỗi [${item.tenXetNghiem}] vào cột QC/Hỏng Ca ${item.caTruc}. Mời bạn ủ que thử mới cho BN ${item.hoTenBN}!`,
-      "info"
+      `Đã cộng +1 que lỗi vào QC/Hỏng và đặt lại lượt ủ cho BN ${item.hoTenBN}. Hãy chạy que mới!`,
+      "success"
     );
   };
 
@@ -8247,21 +8322,35 @@ export function MainApp() {
 
                             {isControlInvalid ? (
                               <div className="p-3 rounded-xl bg-rose-50 border-2 border-rose-300 space-y-2 text-center">
-                                <div className="text-[11px] font-bold text-rose-900">
-                                  ⚠️ Vạch chứng (C) Âm tính: Que thử không hợp
-                                  lệ (Invalid Test). Theo chuẩn ISO 15189, hệ
-                                  thống đã khóa nút trả kết quả bệnh nhân trên
-                                  que này.
+                                <div className="text-[11px] font-bold text-rose-900 leading-snug">
+                                  ⚠️ Vạch chứng (C) Âm tính: Que thử lỗi
+                                  (Invalid Test). Theo chuẩn ISO 15189, kết quả
+                                  không được ghi vào BM.04 mà phải tính vào hao
+                                  hụt QC/Hỏng. Vui lòng chọn 1 trong 2 phương
+                                  án:
                                 </div>
-                                <button
-                                  type="button"
-                                  disabled={isLockedByOtherUser}
-                                  onClick={() => handleReportInvalidKit(item)}
-                                  className="w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider shadow-md transition"
-                                >
-                                  ♻️ Hủy Que Lỗi (+1 Vào Cột QC/Hỏng) & Làm Lại
-                                  Que Mới
-                                </button>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    disabled={isLockedByOtherUser}
+                                    onClick={() =>
+                                      handleReportInvalidKit(item, "RETRY")
+                                    }
+                                    className="py-2 px-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-[11px] font-black uppercase shadow-md transition leading-tight"
+                                  >
+                                    ♻️ +1 QC/Hỏng & Ủ Lại Que Mới (Giữ BN)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isLockedByOtherUser}
+                                    onClick={() =>
+                                      handleReportInvalidKit(item, "DISCARD")
+                                    }
+                                    className="py-2 px-2 rounded-xl bg-rose-700 hover:bg-rose-600 disabled:opacity-50 text-white text-[11px] font-black uppercase shadow-md transition leading-tight"
+                                  >
+                                    🗑️ +1 QC/Hỏng & Xóa Khỏi Hàng Đợi
+                                  </button>
+                                </div>
                               </div>
                             ) : isMulti ? (
                               <>
