@@ -3780,15 +3780,6 @@ export function PcHandoverQrModal({
       ? `${window.location.origin}${window.location.pathname}`
       : "";
 
-  const currentActiveApiUrl = (() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEYS.API_URL);
-      return raw ? JSON.parse(raw) : DEFAULT_API_URL;
-    } catch {
-      return DEFAULT_API_URL;
-    }
-  })();
-
   const mobileVerifyUrl = `${baseUrl}?handover_qr=${encodeURIComponent(
     qrState.qrToken
   )}&pin=${encodeURIComponent(qrState.qrPin)}`;
