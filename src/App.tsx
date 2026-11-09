@@ -46,7 +46,7 @@ import {
 /* ============================== CẤU HÌNH KẾT NỐI ============================== */
 
 const DEFAULT_API_URL =
-  "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/execc";
+  "https://script.google.com/macros/s/AKfycbx0jakdbvQoA9-trw7tF1vsbpdpmJQI4M4Jh0YhFSzEvLQxvO3xvSxLIs3zFj-0b2g/exec";
 
 const STORAGE_KEYS = Object.freeze({
   API_URL: "MD_API_URL_V2",
@@ -65,7 +65,25 @@ const STORAGE_KEYS = Object.freeze({
   PENDING_QR_CLAIM: "MD_PENDING_QR_CLAIM_V2031",
 });
 
-/* ====== BỘ BẮT TÍN HIỆU QR ĐỒNG BỘ TRƯỚC KHI REACT RENDER (CHỐNG LỖI ZALO/CAMERA) ====== */
+// Tự động dọn sạch URL bị dính lỗi "/execc" trong localStorage (nếu có) ngay khi mở trang
+if (typeof window !== "undefined") {
+  try {
+    const rawSavedUrl = window.localStorage.getItem(STORAGE_KEYS.API_URL);
+    if (rawSavedUrl) {
+      const parsedUrl = JSON.parse(rawSavedUrl);
+      if (
+        typeof parsedUrl !== "string" ||
+        !parsedUrl.startsWith("https://script.google.com/macros/s/") ||
+        !parsedUrl.endsWith("/exec")
+      ) {
+        window.localStorage.setItem(
+          STORAGE_KEYS.API_URL,
+          JSON.stringify(DEFAULT_API_URL)
+        );
+      }
+    }
+  } catch {}
+}
 
 export interface PendingQrClaimPayload {
   qrToken: string;
@@ -93,7 +111,6 @@ function captureInitialQrFromUrl(): PendingQrClaimPayload | null {
         qrPin,
         capturedAt: Date.now(),
       };
-      // Lưu đồng thời vào cả sessionStorage và localStorage (có TTL 10 phút) để chống Zalo WebView xóa mất session
       try {
         window.sessionStorage.setItem(
           STORAGE_KEYS.PENDING_QR_CLAIM,
@@ -105,8 +122,6 @@ function captureInitialQrFromUrl(): PendingQrClaimPayload | null {
           STORAGE_KEYS.PENDING_QR_CLAIM,
           JSON.stringify(payload)
         );
-        // XÓA NGAY TÀI KHOẢN CŨ ĐANG LƯU TRÊN ĐIỆN THOẠI ĐỂ BẮT BUỘC NGƯỜI NHẬN CA PHẢI ĐĂNG NHẬP
-        // (Chặn đứng 100% lỗi quét QR tự nhảy vào bản kiểm với tên Người giao)
         window.localStorage.removeItem(STORAGE_KEYS.AUTH);
         window.localStorage.removeItem(STORAGE_KEYS.CHECKER);
       } catch {}
@@ -116,7 +131,6 @@ function captureInitialQrFromUrl(): PendingQrClaimPayload | null {
       return payload;
     }
 
-    // Kiểm tra xem có phiên QR nào vừa được bắt trong vòng 10 phút chưa xử lý không
     const rawSaved =
       window.sessionStorage.getItem(STORAGE_KEYS.PENDING_QR_CLAIM) ||
       window.localStorage.getItem(STORAGE_KEYS.PENDING_QR_CLAIM);
@@ -1159,9 +1173,9 @@ export async function rpcCall(
   action: string,
   payload: Record<string, any> = {},
   token?: string,
-  timeoutMs = 22000
+  timeoutMs = 25000
 ): Promise<RpcResult> {
-  const url = String(apiUrl || "").trim();
+  const url = String(apiUrl || DEFAULT_API_URL).trim();
   if (!url || url.includes("THAY_BANG_URL_DEPLOY")) {
     return {
       net: false,
@@ -1172,57 +1186,73 @@ export async function rpcCall(
       },
     };
   }
-  const ctrl = new AbortController();
-  const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action, token, ...payload }),
-      signal: ctrl.signal,
-      redirect: "follow",
-    });
-    window.clearTimeout(timer);
-    const text = await res.text();
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const json = JSON.parse(text);
-      if (json && typeof json === "object") {
-        if (typeof json.serverTimeMs === "number")
-          updateServerOffset(json.serverTimeMs);
-        return { net: true, body: json };
+      const res = await fetch(url, {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action, token, ...payload }),
+        signal: ctrl.signal,
+        redirect: "follow",
+      });
+      window.clearTimeout(timer);
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        if (json && typeof json === "object") {
+          if (typeof json.serverTimeMs === "number")
+            updateServerOffset(json.serverTimeMs);
+          return { net: true, body: json };
+        }
+        return {
+          net: false,
+          body: {
+            status: "error",
+            code: "BAD_JSON",
+            message: "Phản hồi máy chủ không đúng định dạng.",
+          },
+        };
+      } catch {
+        return {
+          net: false,
+          body: {
+            status: "error",
+            code: "PARSE_ERR",
+            message:
+              "Không đọc được JSON từ Google Apps Script (Hãy kiểm tra Deploy -> New version & quyền Anyone).",
+          },
+        };
+      }
+    } catch (err: any) {
+      window.clearTimeout(timer);
+      if (attempt === 0) {
+        await new Promise((r) => window.setTimeout(r, 700));
+        continue;
       }
       return {
         net: false,
         body: {
           status: "error",
-          code: "BAD_JSON",
-          message: "Phản hồi máy chủ không đúng định dạng.",
-        },
-      };
-    } catch {
-      return {
-        net: false,
-        body: {
-          status: "error",
-          code: "PARSE_ERR",
-          message: "Không đọc được JSON từ Google Apps Script.",
+          code: "NETWORK",
+          message:
+            err?.name === "AbortError"
+              ? "Quá thời gian chờ phản hồi máy chủ."
+              : "Mất kết nối mạng (hoặc URL Deploy trên điện thoại chưa đồng bộ).",
         },
       };
     }
-  } catch (err: any) {
-    window.clearTimeout(timer);
-    return {
-      net: false,
-      body: {
-        status: "error",
-        code: "NETWORK",
-        message:
-          err?.name === "AbortError"
-            ? "Quá thời gian chờ phản hồi máy chủ."
-            : "Mất kết nối mạng.",
-      },
-    };
   }
+
+  return {
+    net: false,
+    body: { status: "error", code: "NETWORK", message: "Mất kết nối mạng." },
+  };
 }
 
 export async function testApiEndpoint(
@@ -3750,6 +3780,15 @@ export function PcHandoverQrModal({
       ? `${window.location.origin}${window.location.pathname}`
       : "";
 
+  const currentActiveApiUrl = (() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEYS.API_URL);
+      return raw ? JSON.parse(raw) : DEFAULT_API_URL;
+    } catch {
+      return DEFAULT_API_URL;
+    }
+  })();
+
   const mobileVerifyUrl = `${baseUrl}?handover_qr=${encodeURIComponent(
     qrState.qrToken
   )}&pin=${encodeURIComponent(qrState.qrPin)}`;
@@ -4609,7 +4648,10 @@ export function MainApp() {
   const [apiUrl, setApiUrl] = usePersistentState<string>(
     STORAGE_KEYS.API_URL,
     DEFAULT_API_URL,
-    (v) => typeof v === "string" && v.length > 5
+    (v) =>
+      typeof v === "string" &&
+      v.startsWith("https://script.google.com/macros/s/") &&
+      v.endsWith("/exec")
   );
 
   const [auth, setAuth] = usePersistentState<AuthState | null>(
