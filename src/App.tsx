@@ -5333,7 +5333,7 @@ export function MainApp() {
               !serverIds.has(x.id) &&
               !deletedBm04Ids.has(x.id)
           );
-          return [...localUnsynced, ...serverList];
+          return [...localUnsynced, ...serverList].slice(0, 1500);
         });
       }
 
@@ -5940,83 +5940,12 @@ export function MainApp() {
       .trim()
       .toUpperCase();
 
-    if (actionType === "DISCARD") {
-      if (
-        !window.confirm(
-          `Xác nhận hủy xét nghiệm [${item.tenXetNghiem}] của BN ${item.hoTenBN}? Hệ thống sẽ cộng +1 vào cột QC/Hỏng trên BM.13 và xóa khỏi hàng đợi.`
-        )
-      ) {
-        return;
-      }
-      if (isStockTestCode(code)) {
-        const key = `${item.ngayBC}_CA${item.caTruc}`;
-        const targetComp =
-          item.ngayBC === selectedDate
-            ? currentDayComputed
-            : item.ngayBC === prevDateStr
-            ? prevDayComputed
-            : computeDaySingle(
-                item.ngayBC,
-                testsConfig,
-                bm04Logs,
-                pendingQueue,
-                bm13Raw,
-                dirtyBm13,
-                null
-              );
-        const existingShiftCells = targetComp.shifts[item.caTruc] || {};
-        const nextCellsPayload: Record<
-          string,
-          { boiHoan: number; suDungQC: number }
-        > = {};
-        targetComp.tests.forEach((t) => {
-          if (!isStockTestCode(t.code)) return;
-          const cur = existingShiftCells[t.code] || {
-            boiHoan: 0,
-            suDungQC: 0,
-            suDung: 0,
-            tonCuoi: 0,
-          };
-          nextCellsPayload[t.code] = {
-            boiHoan: cur.boiHoan,
-            suDungQC: t.code === code ? cur.suDungQC + 1 : cur.suDungQC,
-          };
-        });
-        setDirtyBm13((prev) => ({
-          ...prev,
-          [key]: { ...(prev[key] || {}), cells: nextCellsPayload },
-        }));
-        enqueueOutbox("saveBM13Data", {
-          ngayBC: item.ngayBC,
-          caTruc: item.caTruc,
-          dataJson: JSON.stringify(nextCellsPayload),
-        });
-      }
-      setPendingQueue((prev) => prev.filter((p) => p.id !== item.id));
-      delete beepedTimerMarksRef.current[item.id];
-      setTimers((prev) => {
-        if (!prev[item.id]) return prev;
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
-      enqueueOutbox("deletePending", { id: item.id });
-      notify(
-        `Đã ghi nhận +1 que lỗi [${item.tenXetNghiem}] vào QC/Hỏng và xóa khỏi hàng đợi.`,
-        "info"
-      );
-      return;
-    }
+    const confirmMsg =
+      actionType === "DISCARD"
+        ? `Xác nhận hủy xét nghiệm [${item.tenXetNghiem}] của BN ${item.hoTenBN}?\nHệ thống sẽ cộng +1 vào cột QC/Hỏng trên BM.13, lưu vết AUDIT_LOGS và xóa khỏi hàng đợi.`
+        : `Xác nhận que thử [${item.tenXetNghiem}] của BN ${item.hoTenBN} bị hỏng Vạch chứng (C)?\n\nHệ thống sẽ:\n1. Cộng +1 vào cột QC/Hỏng trên BM.13 & lưu vết AUDIT_LOGS.\n2. Đặt lại thời gian ủ để bạn chạy que mới trên cùng lượt tiếp nhận này.`;
 
-    // ĐÃ VÁ: Khi chọn Ủ lại que mới -> Tự động cộng +1 vào QC/Hỏng ngay lập tức trên BM.13,
-    // đồng thời đặt cờ isRetry = true để que thứ 2 sau khi chạy xong chỉ tính 1 test sử dụng duy nhất!
-    if (
-      !window.confirm(
-        `Xác nhận que thử [${item.tenXetNghiem}] của BN ${item.hoTenBN} bị hỏng Vạch C?\n\nHệ thống sẽ:\n1. Cộng +1 vào cột QC/Hỏng trên BM.13 ngay lập tức.\n2. Đặt lại thời gian ủ để bạn chạy que mới trên cùng lượt tiếp nhận này.`
-      )
-    ) {
-      return;
-    }
+    if (!window.confirm(confirmMsg)) return;
 
     if (isStockTestCode(code)) {
       const key = `${item.ngayBC}_CA${item.caTruc}`;
@@ -6056,30 +5985,25 @@ export function MainApp() {
         ...prev,
         [key]: { ...(prev[key] || {}), cells: nextCellsPayload },
       }));
-      enqueueOutbox("saveBM13Data", {
-        ngayBC: item.ngayBC,
-        caTruc: item.caTruc,
-        dataJson: JSON.stringify(nextCellsPayload),
-      });
     }
 
-    const freshIso = getTrustedNow().toISOString();
-    setPendingQueue((prev) =>
-      prev.map((p) =>
-        p.id === item.id
-          ? ({
-              ...p,
-              docChung: "Dương tính",
-              timestamp: freshIso,
-              isRetry: true,
-            } as any)
-          : p
-      )
-    );
-    setDrafts((prev) => ({
-      ...prev,
-      [item.id]: { docChung: "Dương tính", ketQua: "" },
-    }));
+    if (actionType === "DISCARD") {
+      setPendingQueue((prev) => prev.filter((p) => p.id !== item.id));
+    } else {
+      const freshIso = getTrustedNow().toISOString();
+      setPendingQueue((prev) =>
+        prev.map((p) =>
+          p.id === item.id
+            ? { ...p, docChung: "Dương tính", timestamp: freshIso }
+            : p
+        )
+      );
+      setDrafts((prev) => ({
+        ...prev,
+        [item.id]: { docChung: "Dương tính", ketQua: "" },
+      }));
+    }
+
     delete beepedTimerMarksRef.current[item.id];
     setTimers((prev) => {
       if (!prev[item.id]) return prev;
@@ -6088,9 +6012,20 @@ export function MainApp() {
       return next;
     });
 
+    enqueueOutbox("reportInvalidKit", {
+      id: item.id,
+      ngayBC: item.ngayBC,
+      caTruc: item.caTruc,
+      maTest: code,
+      hoTenBN: item.hoTenBN,
+      actionType,
+    });
+
     notify(
-      `Đã cộng +1 que lỗi vào QC/Hỏng và đặt lại lượt ủ cho BN ${item.hoTenBN}. Hãy chạy que mới!`,
-      "success"
+      actionType === "DISCARD"
+        ? `Đã ghi nhận +1 que lỗi [${item.tenXetNghiem}] vào QC/Hỏng và xóa khỏi hàng đợi.`
+        : `Đã cộng +1 que lỗi vào QC/Hỏng và đặt lại lượt ủ cho BN ${item.hoTenBN}. Hãy chạy que mới!`,
+      actionType === "DISCARD" ? "info" : "success"
     );
   };
 
